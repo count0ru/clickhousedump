@@ -76,10 +76,8 @@ func freezePartitions(clickhouseConnection *sql.DB, dbName string, showPartition
 			Info.Println(partition.partID, "partition  of table", partition.tableName, "found for", partition.databaseName)
 			databasePartitions = append(databasePartitions, partition)
 			if !showPartitionsOnly {
-				Info.Println("ALTER TABLE", partition.databaseName + "." + partition.tableName, "FREEZE PARTITION '" + partition.partID + "';")
 				clickhouseConnection.Query("ALTER TABLE", partition.databaseName + "." + partition.tableName, "FREEZE PARTITION '" + partition.partID + "';")
 			} else {
-				Info.Println("ALTER TABLE", partition.databaseName + "." + partition.tableName, "FREEZE PARTITION '" + partition.partID + "';")
 			}
 		}
 
@@ -111,12 +109,10 @@ func copyDirectory(sourceDirectory string, destinationDirectory string) error {
 		destinationPath := path.Join(destinationDirectory, fileDescriptor.Name())
 		if fileDescriptor.IsDir() {
 			if err = copyDirectory(sourcePath, destinationPath); err != nil {
-				fmt.Println(sourcePath, destinationPath)
 				Error.Fatalln(err)
 			}
 		} else {
 			if err = copyFile(sourcePath, destinationPath); err != nil {
-				fmt.Println(sourcePath, destinationPath)
 				Error.Fatalln(err)
 			}
 		}
@@ -134,7 +130,7 @@ func copyFile(sourceFile string, destinationFile string) error {
 
 	err = ioutil.WriteFile(destinationFile, input, 0644)
 	if err != nil {
-		Error.Fatalln("Error creating", destinationFile)
+		Error.Fatalln("cant'r create", destinationFile)
 		return err
 	}
 
@@ -155,16 +151,12 @@ func DumpData(inDirectory string, outDirectory string, databaseName string) erro
 
 
 	err = copyDirectory(inDirectory + "/shadow/1/data/" + databaseName, outDirectory + "/partitions/" + databaseName)
-	Info.Println(inDirectory + "/shadow/1/data/" + databaseName, outDirectory + "/partitions/" + databaseName)
 	if err != nil {
-		Error.Println("can't copy", inDirectory + "/shadow/1/data/" + databaseName, outDirectory + "/partitions/" + databaseName, err)
 		return  err
 	}
 
 	err = copyDirectory(inDirectory + "/metadata/" + databaseName, outDirectory + "/metadata/" + databaseName)
-	Info.Println(inDirectory + "/metadata/" + databaseName, "to", outDirectory + "/metadata/" + databaseName)
 	if err != nil {
-		Error.Println(inDirectory+"/metadata/"+databaseName, "to", outDirectory+"/metadata/"+databaseName)
 		return err
 	}
 
