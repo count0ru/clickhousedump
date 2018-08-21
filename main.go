@@ -10,6 +10,7 @@ import (
 	"log"
 	"os"
 	"strings"
+	"path"
 )
 
 var (
@@ -75,7 +76,10 @@ func freezePartitions(clickhouseConnection *sql.DB, dbName string, showPartition
 			Info.Println(partition.partID, "partition  of table", partition.tableName, "found for", partition.databaseName)
 			databasePartitions = append(databasePartitions, partition)
 			if !showPartitionsOnly {
-				fmt.Println("ALTER TABLE", partition.databaseName + "." + partition.tableName, "FREEZE PARTITION '" + partition.partID + "';")
+				Info.Println("ALTER TABLE", partition.databaseName + "." + partition.tableName, "FREEZE PARTITION '" + partition.partID + "';")
+				clickhouseConnection.Query("ALTER TABLE", partition.databaseName + "." + partition.tableName, "FREEZE PARTITION '" + partition.partID + "';")
+			} else {
+				Info.Println("ALTER TABLE", partition.databaseName + "." + partition.tableName, "FREEZE PARTITION '" + partition.partID + "';")
 			}
 		}
 
@@ -84,16 +88,84 @@ func freezePartitions(clickhouseConnection *sql.DB, dbName string, showPartition
 	return databasePartitions
 }
 
-func dumpFiles(inputDirectory string, outDirectory string) error {
 
-	if _, err := os.Stat(inputDirectory); os.IsNotExist(err) {
-		Error.Println(inputDirectory, "not found")
+func copyDirectory(sourceDirectory string, destinationDirectory string) error {
+
+	var err error
+	var fileDescriptors []os.FileInfo
+	var sourceInfo os.FileInfo
+
+	if sourceInfo, err = os.Stat(sourceDirectory); err != nil {
+		return err
+	}
+
+	if err = os.MkdirAll(destinationDirectory, sourceInfo.Mode()); err != nil {
+		return err
+	}
+
+	if fileDescriptors, err = ioutil.ReadDir(sourceDirectory); err != nil {
+		return err
+	}
+	for _, fileDescriptor := range fileDescriptors {
+		sourcePath := path.Join(sourceDirectory, fileDescriptor.Name())
+		destinationPath := path.Join(destinationDirectory, fileDescriptor.Name())
+		if fileDescriptor.IsDir() {
+			if err = copyDirectory(sourcePath, destinationPath); err != nil {
+				fmt.Println(sourcePath, destinationPath)
+				Error.Fatalln(err)
+			}
+		} else {
+			if err = copyFile(sourcePath, destinationPath); err != nil {
+				fmt.Println(sourcePath, destinationPath)
+				Error.Fatalln(err)
+			}
+		}
+	}
+	return nil
+}
+
+func copyFile(sourceFile string, destinationFile string) error {
+
+	input, err := ioutil.ReadFile(sourceFile)
+	if err != nil {
+		Error.Fatalln("cant't open file", sourceFile)
+		return err
+	}
+
+	err = ioutil.WriteFile(destinationFile, input, 0644)
+	if err != nil {
+		Error.Fatalln("Error creating", destinationFile)
+		return err
+	}
+
+	return nil
+
+}
+
+func DumpData(inDirectory string, outDirectory string, databaseName string) error {
+
+	var err error
+
+	//create backup directory structure
+	os.Mkdir(outDirectory + "/partitions", os.ModePerm)
+	os.Mkdir(outDirectory + "/partitions/" + databaseName, os.ModePerm)
+
+	os.Mkdir(outDirectory + "/metadata", os.ModePerm)
+	os.Mkdir(outDirectory + "/metadata/" + databaseName, os.ModePerm)
+
+
+	err = copyDirectory(inDirectory + "/shadow/1/data/" + databaseName, outDirectory + "/partitions/" + databaseName)
+	Info.Println(inDirectory + "/shadow/1/data/" + databaseName, outDirectory + "/partitions/" + databaseName)
+	if err != nil {
+		Error.Println("can't copy", inDirectory + "/shadow/1/data/" + databaseName, outDirectory + "/partitions/" + databaseName, err)
 		return  err
 	}
 
-	if _, err := os.Stat(outDirectory); os.IsNotExist(err) {
-		Error.Println(outDirectory, "not found")
-		return  err
+	err = copyDirectory(inDirectory + "/metadata/" + databaseName, outDirectory + "/metadata/" + databaseName)
+	Info.Println(inDirectory + "/metadata/" + databaseName, "to", outDirectory + "/metadata/" + databaseName)
+	if err != nil {
+		Error.Println(inDirectory+"/metadata/"+databaseName, "to", outDirectory+"/metadata/"+databaseName)
+		return err
 	}
 
 	return nil
@@ -104,8 +176,14 @@ func main() {
 
 	Init(ioutil.Discard, os.Stdout, os.Stdout, os.Stderr)
 
-	var connectionString string
+	var (
+		connectionString string
+	 	inputDirectory string
+		outputDirectory string
+	)
 
+	//TODO: add cleanup /var/lib/clickhouse/shadow after dump flag
+	//TODO: add incremental id
 	argHost := flag.String("h", "127.0.0.1", "server hostname")
 	argBackup := flag.Bool("backup", false, "backup mode")
 	argRestore := flag.Bool("restore", false, "restore mode")
@@ -114,21 +192,24 @@ func main() {
 	argDatabase := flag.String("db", "", "database name")
     argNoFreeze := flag.Bool("no-freeze", false, "do not freeze, only show partitions")
 	argInDirectory := flag.String("in", "", "source directory (/var/lib/clickhouse for backup mode by default)")
-	argOutDirectory := flag.String("in", "", "destination directory")
+	argOutDirectory := flag.String("out", "", "destination directory")
 	flag.Parse()
 
 	if *argBackup && !*argRestore {
 
 		fmt.Println("Run in backup mode")
 
+
 		if *argInDirectory == "" {
-			inputDirectory := "/var/lib/clickhouse"
+			inputDirectory = "/var/lib/clickhouse"
 		} else {
-			inputDirectory := *argInDirectory
+			inputDirectory = *argInDirectory
 		}
 
 		if *argOutDirectory == "" {
 			Error.Fatalln("please set destination directory")
+		} else {
+			outputDirectory =  *argOutDirectory
 		}
 
 	} else if *argRestore && !*argBackup {
@@ -140,6 +221,14 @@ func main() {
 	} else {
 		Error.Fatalln("Run in only one mode (backup or restore)")
 
+	}
+
+	if _, err := os.Stat(inputDirectory); os.IsNotExist(err) {
+		Error.Fatalln(inputDirectory, "not found")
+	}
+
+	if _, err := os.Stat(outputDirectory); os.IsNotExist(err) {
+		Error.Fatalln(outputDirectory, "not found")
 	}
 
 	connectionString = "tcp://" + *argHost + ":" + *argPort +"?username=&compress=true"
@@ -174,9 +263,15 @@ func main() {
 			if err := databaseList.Scan(&resDatabase); err != nil {
 				Error.Println("can't get partitions IDs")
 			}
+
 			freezePartitions(connect, resDatabase, *argNoFreeze)
 		}
 	} else {
+
 			freezePartitions(connect, *argDatabase, *argNoFreeze)
+			err = DumpData(inputDirectory, outputDirectory, *argDatabase)
+			if err != nil {
+				Error.Fatalln("can't dump data")
+			}
 	}
 }
