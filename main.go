@@ -99,7 +99,10 @@ func freezePartitions(clickhouseConnection *sql.DB, databaseName string, showPar
 			if showPartitionsOnly {
 				Info.Printf("ALTER TABLE %v.%v FREEZE PARTITION '%v';", partition.databaseName, partition.tableName, partition.partID)
 			} else {
-				clickhouseConnection.Query("ALTER TABLE", partition.databaseName + "." + partition.tableName, "FREEZE PARTITION '" + partition.partID + "';")
+				_, err = clickhouseConnection.Query("ALTER TABLE", partition.databaseName + "." + partition.tableName, "FREEZE PARTITION '" + partition.partID + "';")
+				if err != nil {
+					Error.Printf("can't execute partition freeze query: %v", err)
+				}
 			}
 
 		}
