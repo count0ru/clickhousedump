@@ -316,6 +316,7 @@ func main() {
 		}
 	}
 
+	defer connect.Close()
 
 	if *argBackup && !*argRestore {
 
