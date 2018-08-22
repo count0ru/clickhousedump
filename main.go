@@ -93,12 +93,15 @@ func freezePartitions(clickhouseConnection *sql.DB, databaseName string, showPar
 			}
 
 			Info.Println(partition.partID, "partition  of table", partition.tableName, "found for", partition.databaseName)
+
 			databasePartitions = append(databasePartitions, partition)
+
 			if showPartitionsOnly {
-				Info.Println("ALTER TABLE", partition.databaseName + "." + partition.tableName, "FREEZE PARTITION '" + partition.partID + "';")
+				Info.Printf("ALTER TABLE %v.%v FREEZE PARTITION '%v';", partition.databaseName, partition.tableName, partition.partID)
 			} else {
 				clickhouseConnection.Query("ALTER TABLE", partition.databaseName + "." + partition.tableName, "FREEZE PARTITION '" + partition.partID + "';")
 			}
+
 		}
 
 	}
@@ -221,7 +224,7 @@ func makeBackup(
 }
 
 // create backup directory structure and copy metadata files and freezed partitions from clickhouse_dir/shadow
-func createDirectories(directoriesList ...string) (error, string) {
+func createDirectories(directoriesList []string) (error, string) {
 
 	for _, currentDirectory := range directoriesList {
 		err := os.Mkdir(currentDirectory, os.ModePerm)
@@ -233,16 +236,22 @@ func createDirectories(directoriesList ...string) (error, string) {
 
 }
 
-
 func dumpData(inDirectory string, outDirectory string, databaseName string) error {
 
-	var err error
+	var  (
+	err error
+	directoryList = []string{
+		outDirectory + "/partitions",
+		outDirectory + "/partitions/" + databaseName,
+		outDirectory + "/metadata",
+		outDirectory + "/metadata/" + databaseName,
+		}
+	)
 
-	os.Mkdir(outDirectory + "/partitions", os.ModePerm)
-	os.Mkdir(outDirectory + "/partitions/" + databaseName, os.ModePerm)
-
-	os.Mkdir(outDirectory + "/metadata", os.ModePerm)
-	os.Mkdir(outDirectory + "/metadata/" + databaseName, os.ModePerm)
+	err, failDirectory := createDirectories(directoryList)
+	if err != nil {
+		Error.Printf("can't create directory: %v", failDirectory)
+	}
 
 
 	err = copyDirectory(inDirectory + "/shadow/1/data/" + databaseName, outDirectory + "/partitions/" + databaseName)
