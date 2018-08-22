@@ -221,6 +221,19 @@ func makeBackup(
 }
 
 // create backup directory structure and copy metadata files and freezed partitions from clickhouse_dir/shadow
+func createDirectories(directoriesList ...string) (error, string) {
+
+	for _, currentDirectory := range directoriesList {
+		err := os.Mkdir(currentDirectory, os.ModePerm)
+		if err != nil {
+			return err, currentDirectory
+		}
+	}
+	return nil, ""
+
+}
+
+
 func dumpData(inDirectory string, outDirectory string, databaseName string) error {
 
 	var err error
