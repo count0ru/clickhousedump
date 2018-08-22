@@ -192,6 +192,13 @@ func makeBackup(
 				Error.Printf("can't freeze partitions: %v", err)
 				return err
 			}
+			if !noFreezeFlag {
+				err = dumpData(inDirectory, outDirectory, databaseName)
+				if err != nil {
+					Error.Printf("can't dump data: %v", err)
+					return err
+				}
+			}
 		}
 	} else {
 
