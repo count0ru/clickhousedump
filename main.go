@@ -130,22 +130,34 @@ func copyFile(sourceFile string, destinationFile string) error {
 
 //Create list of directories
 func createDirectories(directoriesList []string) (error, string) {
-
 	for _, currentDirectory := range directoriesList {
-		err := os.Mkdir(currentDirectory, os.ModePerm)
+		directoryExists, err := isExists(currentDirectory)
 		if err != nil {
-			return err, currentDirectory
+			if !directoryExists {
+				err := os.Mkdir(currentDirectory, os.ModePerm)
+				if err != nil {
+					return err, currentDirectory
+				}
+			}
 		}
 	}
 	return nil, ""
-
 }
 
-//Check directory is exist
-func isDirectoryExist(directoriesList ...string) (error, string) {
+// Check single directory or file exist
+func isExists(filePath string) (bool, error) {
+	var err error
+	if _, err := os.Stat(filePath); os.IsNotExist(err) {
+		return false, err
+	}
+	return true, err
+}
 
+//Check directory list is exist
+func isDirectoryInListExist(directoriesList ...string) (error, string) {
 	for _, currentDirectory := range directoriesList {
-		if _, err := os.Stat(currentDirectory); os.IsNotExist(err) {
+		_, err := isExists(currentDirectory)
+		if err != nil {
 			return err, currentDirectory
 		}
 	}
@@ -340,7 +352,7 @@ func main() {
 			outputDirectory = *argOutDirectory
 		}
 
-		err, noDirectory := isDirectoryExist(inputDirectory, outputDirectory)
+		err, noDirectory := isDirectoryInListExist(inputDirectory, outputDirectory)
 		if err != nil {
 			Error.Fatalf("%v not found", noDirectory)
 		}
