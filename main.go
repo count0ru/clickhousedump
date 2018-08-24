@@ -342,7 +342,7 @@ func main() {
 
 		err, noDirectory := isDirectoryExist(inputDirectory, outputDirectory)
 		if err != nil {
-			Error.Fatalf("v% not found", noDirectory)
+			Error.Fatalf("%v not found", noDirectory)
 		}
 
 		var partitionsList []partitionDescribe
