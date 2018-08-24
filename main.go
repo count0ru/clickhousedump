@@ -1,16 +1,16 @@
 package main
 
 import (
-	"database/sql"
 	"flag"
 	"fmt"
+	"github.com/jmoiron/sqlx"
 	"github.com/kshvakov/clickhouse"
 	"io"
 	"io/ioutil"
 	"log"
 	"os"
-	"strings"
 	"path"
+	"strings"
 )
 
 var (
@@ -20,10 +20,34 @@ var (
 	Error   *log.Logger
 )
 
+var (
+	ClickhouseConnectionString string
+	NoFreezeFlag               bool
+	SourceDirectory            string
+	DestinationDirectory       string
+)
+
 type partitionDescribe struct {
-	partID       string
-	tableName    string
 	databaseName string
+	tableName    string
+	partID       string
+}
+
+type dataBase struct {
+	name string
+}
+
+type GetPartitions struct {
+	Database string
+	Result   []partitionDescribe
+}
+
+type FreezePartitions struct {
+	Partitions []partitionDescribe
+}
+
+type GetDatabasesList struct {
+	Result []dataBase
 }
 
 func Init(
@@ -49,76 +73,13 @@ func Init(
 		log.Ldate|log.Ltime|log.Lshortfile)
 }
 
-//check directory is exist
-func isDirectoryExist( directoriesList ...string) (error, string) {
-
-	for _, currentDirectory := range directoriesList {
-		if _, err := os.Stat(currentDirectory); os.IsNotExist(err) {
-			return err, currentDirectory
-		}
-	}
-	return nil, ""
-}
-
-
-// make partitions hardlinks after freeze
-func freezePartitions(clickhouseConnection *sql.DB, databaseName string, showPartitionsOnly bool) error {
-
-	var (
-		databasePartitions []partitionDescribe
-		err error
-	)
-
-	currentPartitions, err := clickhouseConnection.Query("select partition, table, database FROM system.parts WHERE active AND database ='" + databaseName + "';")
-	if err != nil {
-		Error.Printf("can't get partitions list for database %v", databaseName)
-	}
-
-	Info.Printf("searching partitions for %v database", databaseName)
-
-	for currentPartitions.Next() {
-
-		var resPartID, resTable, resDatabase string
-
-		if err := currentPartitions.Scan(&resPartID, &resTable, &resDatabase); err != nil {
-			Error.Printf("can't get partitions IDs: %v", err)
-			return err
-		}
-
-		if !strings.HasPrefix(resTable, ".") {
-			partition := partitionDescribe{
-				partID:       resPartID,
-				tableName:    resTable,
-				databaseName: resDatabase,
-			}
-
-			Info.Println(partition.partID, "partition  of table", partition.tableName, "found for", partition.databaseName)
-
-			databasePartitions = append(databasePartitions, partition)
-
-			if showPartitionsOnly {
-				Info.Printf("ALTER TABLE %v.%v FREEZE PARTITION '%v';", partition.databaseName, partition.tableName, partition.partID)
-			} else {
-				_, err = clickhouseConnection.Exec("ALTER TABLE " + partition.databaseName + "." + partition.tableName + " FREEZE PARTITION '" + partition.partID + "';")
-				if err != nil {
-					Error.Printf("can't execute partition freeze query: %v", err)
-				}
-			}
-
-		}
-
-	}
-
-	return nil
-}
-
 // recursive copy directory and files
 func copyDirectory(sourceDirectory string, destinationDirectory string) error {
 
 	var (
-		err error
-	    fileDescriptors []os.FileInfo
-		sourceInfo os.FileInfo
+		err             error
+		fileDescriptors []os.FileInfo
+		sourceInfo      os.FileInfo
 	)
 
 	if sourceInfo, err = os.Stat(sourceDirectory); err != nil {
@@ -167,66 +128,7 @@ func copyFile(sourceFile string, destinationFile string) error {
 
 }
 
-// create backup for specify database or for all databases (w/o system)
-func makeBackup(
-	clickhouseConnection *sql.DB,
-	inDirectory string,
-	outDirectory string,
-	databaseName string,
-	noFreezeFlag bool,
-	) error {
-
-	var err error
-
-	if databaseName	== "" {
-		databaseList, err := clickhouseConnection.Query("SHOW DATABASES;")
-		if err != nil {
-			Error.Fatalf("can't get databases list: %v", err)
-		}
-
-		for databaseList.Next() {
-
-			var resDatabase string
-
-			if err := databaseList.Scan(&resDatabase); err != nil {
-				Error.Printf("can't get partitions IDs, %v", err)
-				return err
-			}
-
-			err = freezePartitions(clickhouseConnection, resDatabase, noFreezeFlag)
-			if err != nil {
-				Error.Printf("can't freeze partitions: %v", err)
-				return err
-			}
-			if !noFreezeFlag {
-				err = dumpData(inDirectory, outDirectory, databaseName)
-				if err != nil {
-					Error.Printf("can't dump data: %v", err)
-					return err
-				}
-			}
-		}
-	} else {
-
-			err = freezePartitions(clickhouseConnection, databaseName, noFreezeFlag)
-			if err != nil {
-				Error.Printf("can't freeze partitions %v", err)
-				return err
-			}
-
-			if !noFreezeFlag {
-				err = dumpData(inDirectory, outDirectory, databaseName)
-				if err != nil {
-					Error.Printf("can't dump data: %v", err)
-					return err
-				}
-			}
-	}
-
-	return nil
-}
-
-// create backup directory structure and copy metadata files and freezed partitions from clickhouse_dir/shadow
+//Create list of directories
 func createDirectories(directoriesList []string) (error, string) {
 
 	for _, currentDirectory := range directoriesList {
@@ -239,89 +141,190 @@ func createDirectories(directoriesList []string) (error, string) {
 
 }
 
-func dumpData(inDirectory string, outDirectory string, databaseName string) error {
+//Check directory is exist
+func isDirectoryExist(directoriesList ...string) (error, string) {
 
-	var  (
-	err error
-	directoryList = []string{
-		outDirectory + "/partitions",
-		outDirectory + "/partitions/" + databaseName,
-		outDirectory + "/metadata",
-		outDirectory + "/metadata/" + databaseName,
+	for _, currentDirectory := range directoriesList {
+		if _, err := os.Stat(currentDirectory); os.IsNotExist(err) {
+			return err, currentDirectory
+		}
+	}
+	return nil, ""
+}
+
+//Get databases list from server
+func (gd *GetDatabasesList) Run(databaseConnection *sqlx.DB) error {
+
+	var (
+		err       error
+		databases []struct {
+			DatabaseName string `db:"name"`
 		}
 	)
 
-	err, failDirectory := createDirectories(directoryList)
+	err = databaseConnection.Select(&databases, "show databases;")
 	if err != nil {
-		Error.Printf("can't create directory: %v", failDirectory)
-	}
-
-
-	err = copyDirectory(inDirectory + "/shadow/1/data/" + databaseName, outDirectory + "/partitions/" + databaseName)
-	if err != nil {
-		Info.Println(inDirectory + "/shadow/1/data/" + databaseName, outDirectory + "/partitions/" + databaseName)
-		return  err
-	}
-
-	err = copyDirectory(inDirectory + "/metadata/" + databaseName, outDirectory + "/metadata/" + databaseName)
-	if err != nil {
-		Info.Println(inDirectory + "/metadata/" + databaseName, outDirectory + "/metadata/" + databaseName)
 		return err
 	}
 
+	for _, item := range databases {
+		gd.Result = append(gd.Result, dataBase{
+			name: item.DatabaseName,
+		})
+	}
+
 	return nil
+
 }
 
+//Freeze partitions and create hardlink in $CLICKHOUSE_DIRECTORY/shadow
+func (fz *FreezePartitions) Run(databaseConnection *sqlx.DB) error {
 
-func main() {
+	for _, partition := range fz.Partitions {
 
-	Init(ioutil.Discard, os.Stdout, os.Stdout, os.Stderr)
-
-	var (
-		connectionString string
-	 	inputDirectory string
-		outputDirectory string
-		err error
-	)
-
-	//TODO: add cleanup /var/lib/clickhouse/shadow after dump flag
-	//TODO: add incremental id
-	argHost := flag.String("h", "127.0.0.1", "server hostname")
-	argBackup := flag.Bool("backup", false, "backup mode")
-	argRestore := flag.Bool("restore", false, "restore mode")
-	argDebugOn := flag.Bool("d", false, "show debug info")
-	argPort := flag.String("p", "9000", "server port")
-	argDatabase := flag.String("db", "", "database name")
-    argNoFreeze := flag.Bool("no-freeze", false, "do not freeze, only show partitions")
-	argInDirectory := flag.String("in", "", "source directory (/var/lib/clickhouse for backup mode by default)")
-	argOutDirectory := flag.String("out", "", "destination directory")
-	flag.Parse()
-
-	connectionString = "tcp://" + *argHost + ":" + *argPort +"?username=&compress=true"
-
-	if *argDebugOn {
-		connectionString = connectionString + "&debug=true"
-	}
-
-	connect, err := sql.Open("clickhouse", connectionString)
-	if err != nil {
-		Error.Println("can't connect to server")
-	}
-
-	if err = connect.Ping(); err != nil {
-		if exception, ok := err.(*clickhouse.Exception); ok {
-			Error.Printf("[%d] %s \n%s\n", exception.Code, exception.Message, exception.StackTrace)
+		if NoFreezeFlag {
+			Info.Printf("ALTER TABLE %v.%v FREEZE PARTITION '%v';",
+				partition.databaseName,
+				partition.tableName,
+				partition.partID,
+			)
 		} else {
-			Error.Println(err)
+
+			//freeze partitions
+			_, err := databaseConnection.Exec(
+				fmt.Sprintf(
+					"ALTER TABLE %v.%v FREEZE PARTITION '%v';",
+					partition.databaseName,
+					partition.tableName,
+					partition.partID,
+				))
+			if err != nil {
+				return err
+			}
+
+			//copy partition files and metadata
+			outDirectory := SourceDirectory
+			inDirectory := DestinationDirectory
+
+			directoryList := []string{
+				outDirectory + "/partitions",
+				outDirectory + "/partitions/" + partition.databaseName,
+				outDirectory + "/metadata",
+				outDirectory + "/metadata/" + partition.databaseName,
+			}
+
+			err, failDirectory := createDirectories(directoryList)
+			if err != nil {
+				Error.Printf("can't create directory: %v", failDirectory)
+				return err
+			}
+
+			err = copyDirectory(
+				inDirectory+"/shadow/1/data/"+partition.databaseName,
+				outDirectory+"/partitions/"+partition.databaseName)
+			if err != nil {
+				return err
+			}
+
+			err = copyDirectory(
+				inDirectory+"/metadata/"+partition.databaseName,
+				outDirectory+"/metadata/"+partition.databaseName)
+			if err != nil {
+				return err
+			}
 		}
 	}
 
-	defer connect.Close()
+	return nil
 
-	if *argBackup && !*argRestore {
+}
 
-		fmt.Println("Run in backup mode")
+//Get list of partitions for tables
+func (gp *GetPartitions) Run(databaseConnection *sqlx.DB) error {
 
+	var (
+		err        error
+		partitions []struct {
+			Partition string `db:"partition"`
+			Table     string `db:"table"`
+			Database  string `db:"database"`
+		}
+	)
+
+	err = databaseConnection.Select(&partitions,
+		fmt.Sprintf("select "+
+			"partition, "+
+			"table, "+
+			"database "+
+			"FROM system.parts WHERE active AND database ='%v';", gp.Database))
+	if err != nil {
+		return err
+	}
+
+	for _, item := range partitions {
+		if !strings.HasPrefix(item.Table, ".") {
+			Info.Printf("found %v partition of %v table in %v database", item.Partition, item.Table, item.Database)
+			gp.Result = append(gp.Result, partitionDescribe{
+				partID:       item.Partition,
+				tableName:    item.Table,
+				databaseName: item.Database,
+			})
+		}
+	}
+
+	return nil
+
+}
+
+func main() {
+
+	var (
+		err             error
+		inputDirectory  string
+		outputDirectory string
+	)
+
+	Init(ioutil.Discard, os.Stdout, os.Stdout, os.Stderr)
+
+	argBackup := flag.Bool("backup", false, "backup mode")
+	argRestore := flag.Bool("restore", false, "restore mode")
+	argHost := flag.String("h", "127.0.0.1", "server hostname")
+	argDataBase := flag.String("db", "", "database name")
+	argDebugOn := flag.Bool("d", false, "show debug info")
+	argPort := flag.String("p", "9000", "server port")
+	argNoFreeze := flag.Bool("no-freeze", false, "do not freeze, only show partitions")
+	argInDirectory := flag.String("in", "", "source directory (/var/lib/clickhouse for backup mode by default)")
+	argOutDirectory := flag.String("out", "", "destination directory")
+
+	flag.Parse()
+
+	NoFreezeFlag = *argNoFreeze
+	ClickhouseConnectionString = "tcp://" + *argHost + ":" + *argPort + "?username=&compress=true"
+
+	if *argDebugOn {
+		ClickhouseConnectionString = ClickhouseConnectionString + "&debug=true"
+	}
+
+	// make connection to clickhouse server
+	clickhouseConnection, err := sqlx.Open("clickhouse", ClickhouseConnectionString)
+	if err != nil {
+		Error.Fatalf("can't connect to clickouse server, v%", err)
+	}
+
+	defer clickhouseConnection.Close()
+
+	if err = clickhouseConnection.Ping(); err != nil {
+		if exception, ok := err.(*clickhouse.Exception); ok {
+			Error.Fatalf("[%d] %s \n%s\n", exception.Code, exception.Message, exception.StackTrace)
+		} else {
+			Error.Fatalln(err)
+		}
+	}
+
+	//Determine run mode
+	if *argBackup && !*argRestore { //Backup mode
+
+		Info.Println("Run in backup mode")
 
 		if *argInDirectory == "" {
 			inputDirectory = "/var/lib/clickhouse"
@@ -332,15 +335,45 @@ func main() {
 		if *argOutDirectory == "" {
 			Error.Fatalln("please set destination directory")
 		} else {
-			outputDirectory =  *argOutDirectory
+			outputDirectory = *argOutDirectory
 		}
 
 		err, noDirectory := isDirectoryExist(inputDirectory, outputDirectory)
 		if err != nil {
-			Error.Fatalln(noDirectory,"not found")
+			Error.Fatalf("v% not found", noDirectory)
 		}
 
-		makeBackup(connect, inputDirectory, outputDirectory, *argDatabase, *argNoFreeze)
+		var partitionsList []partitionDescribe
+
+		//Get partitions list for databases or database (--db argument)
+		if *argDataBase == "" {
+			databaseList := GetDatabasesList{}
+			err = databaseList.Run(clickhouseConnection)
+			if err != nil {
+				Error.Printf("can't get database list, %v", err)
+			}
+			for _, database := range databaseList.Result {
+				cmdGetPartitionsList := GetPartitions{Database: database.name}
+				err = cmdGetPartitionsList.Run(clickhouseConnection)
+				if err != nil {
+					Error.Printf("can't get partition list, %v", err)
+				}
+				partitionsList = cmdGetPartitionsList.Result
+			}
+		} else {
+			cmdGetPartitionsList := GetPartitions{Database: *argDataBase}
+			err = cmdGetPartitionsList.Run(clickhouseConnection)
+			if err != nil {
+				Error.Printf("can't get partition list, %v", err)
+			}
+			partitionsList = cmdGetPartitionsList.Result
+		}
+
+		cmdFreezePartitions := FreezePartitions{Partitions: partitionsList}
+		err = cmdFreezePartitions.Run(clickhouseConnection)
+		if err != nil {
+			Error.Printf("can't freeze partition, %v", err)
+		}
 
 	} else if *argRestore && !*argBackup {
 		fmt.Println("Run in restore mode")
@@ -353,4 +386,5 @@ func main() {
 
 	}
 
+	fmt.Println("done")
 }
