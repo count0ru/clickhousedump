@@ -23,8 +23,6 @@ var (
 var (
 	ClickhouseConnectionString string
 	NoFreezeFlag               bool
-	SourceDirectory            string
-	DestinationDirectory       string
 )
 
 type partitionDescribe struct {
@@ -43,7 +41,9 @@ type GetPartitions struct {
 }
 
 type FreezePartitions struct {
-	Partitions []partitionDescribe
+	Partitions           []partitionDescribe
+	SourceDirectory      string
+	DestinationDirectory string
 }
 
 type GetDatabasesList struct {
@@ -203,8 +203,10 @@ func (fz *FreezePartitions) Run(databaseConnection *sqlx.DB) error {
 			}
 
 			//copy partition files and metadata
-			outDirectory := SourceDirectory
-			inDirectory := DestinationDirectory
+			inDirectory := fz.SourceDirectory
+			outDirectory := fz.DestinationDirectory
+
+			Info.Printf("copy data from %v to %v", inDirectory, outDirectory)
 
 			directoryList := []string{
 				outDirectory + "/partitions",
@@ -369,7 +371,11 @@ func main() {
 			partitionsList = cmdGetPartitionsList.Result
 		}
 
-		cmdFreezePartitions := FreezePartitions{Partitions: partitionsList}
+		cmdFreezePartitions := FreezePartitions{
+			Partitions: partitionsList,
+			SourceDirectory: inputDirectory,
+			DestinationDirectory: outputDirectory,
+		}
 		err = cmdFreezePartitions.Run(clickhouseConnection)
 		if err != nil {
 			Error.Printf("can't freeze partition, %v", err)
@@ -383,7 +389,6 @@ func main() {
 
 	} else {
 		Error.Fatalln("Run in only one mode (backup or restore)")
-
 	}
 
 	fmt.Println("done")
