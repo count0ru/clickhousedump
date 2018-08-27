@@ -112,20 +112,27 @@ func copyDirectory(sourceDirectory string, destinationDirectory string) error {
 // copy files
 func copyFile(sourceFile string, destinationFile string) error {
 
-	input, err := ioutil.ReadFile(sourceFile)
+	var err error
+
+	fromFile, err := os.Open(sourceFile)
 	if err != nil {
-		Error.Fatalf("cant't open file: %v", sourceFile)
-		return err
+		return  err
 	}
 
-	err = ioutil.WriteFile(destinationFile, input, 0644)
+	defer fromFile.Close()
+
+	toFile, err := os.OpenFile(destinationFile, os.O_RDWR|os.O_CREATE, 0666)
 	if err != nil {
-		Error.Fatalf("cant'r create: %v", destinationFile)
+		return err
+	}
+	defer toFile.Close()
+
+	_, err = io.Copy(toFile, fromFile)
+	if err != nil {
 		return err
 	}
 
 	return nil
-
 }
 
 //Create list of directories
