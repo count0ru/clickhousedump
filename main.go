@@ -225,7 +225,6 @@ func (fz *FreezePartitions) Run(databaseConnection *sqlx.DB) error {
 			inDirectory := fz.SourceDirectory
 			outDirectory := fz.DestinationDirectory
 
-			Info.Printf("copy data from %v to %v", inDirectory, outDirectory)
 
 			directoryList := []string{
 				outDirectory + "/partitions",
@@ -240,6 +239,9 @@ func (fz *FreezePartitions) Run(databaseConnection *sqlx.DB) error {
 				return err
 			}
 
+			Info.Printf("copy data from %v to %v",
+				inDirectory+"/shadow/backup/data/"+partition.databaseName,
+				outDirectory+"/partitions/"+partition.databaseName)
 			err = copyDirectory(
 				inDirectory+"/shadow/backup/data/"+partition.databaseName,
 				outDirectory+"/partitions/"+partition.databaseName)
@@ -247,6 +249,9 @@ func (fz *FreezePartitions) Run(databaseConnection *sqlx.DB) error {
 				return err
 			}
 
+			Info.Printf("copy data from %v to %v",
+				inDirectory+"/metadata/"+partition.databaseName,
+				outDirectory+"/metadata/"+partition.databaseName)
 			err = copyDirectory(
 				inDirectory+"/metadata/"+partition.databaseName,
 				outDirectory+"/metadata/"+partition.databaseName)
