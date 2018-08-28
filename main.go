@@ -73,7 +73,7 @@ func Init(
 		log.Ldate|log.Ltime|log.Lshortfile)
 }
 
-// recursive copy directory and files
+// Recursive copy directory and files
 func copyDirectory(sourceDirectory string, destinationDirectory string) error {
 
 	var (
@@ -109,14 +109,14 @@ func copyDirectory(sourceDirectory string, destinationDirectory string) error {
 	return nil
 }
 
-// copy files
+// Copy files
 func copyFile(sourceFile string, destinationFile string) error {
 
 	var err error
 
 	fromFile, err := os.Open(sourceFile)
 	if err != nil {
-		return  err
+		return err
 	}
 
 	defer fromFile.Close()
@@ -135,7 +135,7 @@ func copyFile(sourceFile string, destinationFile string) error {
 	return nil
 }
 
-//Create list of directories
+// Create list of directories
 func createDirectories(directoriesList []string) (error, string) {
 	for _, currentDirectory := range directoriesList {
 		directoryExists, err := isExists(currentDirectory)
@@ -160,7 +160,7 @@ func isExists(filePath string) (bool, error) {
 	return true, err
 }
 
-//Check directory list is exist
+// Check directory list is exist
 func isDirectoryInListExist(directoriesList ...string) (error, string) {
 	for _, currentDirectory := range directoriesList {
 		_, err := isExists(currentDirectory)
@@ -171,7 +171,7 @@ func isDirectoryInListExist(directoriesList ...string) (error, string) {
 	return nil, ""
 }
 
-//Get databases list from server
+// Get databases list from server
 func (gd *GetDatabasesList) Run(databaseConnection *sqlx.DB) error {
 
 	var (
@@ -196,7 +196,7 @@ func (gd *GetDatabasesList) Run(databaseConnection *sqlx.DB) error {
 
 }
 
-//Freeze partitions and create hardlink in $CLICKHOUSE_DIRECTORY/shadow
+// Freeze partitions and create hardlink in $CLICKHOUSE_DIRECTORY/shadow
 func (fz *FreezePartitions) Run(databaseConnection *sqlx.DB) error {
 
 	for _, partition := range fz.Partitions {
@@ -209,7 +209,7 @@ func (fz *FreezePartitions) Run(databaseConnection *sqlx.DB) error {
 			)
 		} else {
 
-			//freeze partitions
+			// freeze partitions
 			_, err := databaseConnection.Exec(
 				fmt.Sprintf(
 					"ALTER TABLE %v.%v FREEZE PARTITION '%v' WITH NAME 'backup';",
@@ -221,10 +221,9 @@ func (fz *FreezePartitions) Run(databaseConnection *sqlx.DB) error {
 				return err
 			}
 
-			//copy partition files and metadata
+			// copy partition files and metadata
 			inDirectory := fz.SourceDirectory
 			outDirectory := fz.DestinationDirectory
-
 
 			directoryList := []string{
 				outDirectory + "/partitions",
@@ -265,7 +264,7 @@ func (fz *FreezePartitions) Run(databaseConnection *sqlx.DB) error {
 
 }
 
-//Get list of partitions for tables
+// Get list of partitions for tables
 func (gp *GetPartitions) Run(databaseConnection *sqlx.DB) error {
 
 	var (
@@ -347,7 +346,7 @@ func main() {
 		}
 	}
 
-	//Determine run mode
+	// determine run mode
 	if *argBackup && !*argRestore { //Backup mode
 
 		Info.Println("Run in backup mode")
@@ -371,7 +370,7 @@ func main() {
 
 		var partitionsList []partitionDescribe
 
-		//Get partitions list for databases or database (--db argument)
+		// get partitions list for databases or database (--db argument)
 		if *argDataBase == "" {
 			databaseList := GetDatabasesList{}
 			err = databaseList.Run(clickhouseConnection)
@@ -396,8 +395,8 @@ func main() {
 		}
 
 		cmdFreezePartitions := FreezePartitions{
-			Partitions: partitionsList,
-			SourceDirectory: inputDirectory,
+			Partitions:           partitionsList,
+			SourceDirectory:      inputDirectory,
 			DestinationDirectory: outputDirectory,
 		}
 		err = cmdFreezePartitions.Run(clickhouseConnection)
