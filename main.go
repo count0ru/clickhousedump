@@ -202,7 +202,7 @@ func (fz *FreezePartitions) Run(databaseConnection *sqlx.DB) error {
 	for _, partition := range fz.Partitions {
 
 		if NoFreezeFlag {
-			Info.Printf("ALTER TABLE %v.%v FREEZE PARTITION '%v';",
+			Info.Printf("ALTER TABLE %v.%v FREEZE PARTITION '%v' WITH NAME 'backup';",
 				partition.databaseName,
 				partition.tableName,
 				partition.partID,
@@ -212,7 +212,7 @@ func (fz *FreezePartitions) Run(databaseConnection *sqlx.DB) error {
 			//freeze partitions
 			_, err := databaseConnection.Exec(
 				fmt.Sprintf(
-					"ALTER TABLE %v.%v FREEZE PARTITION '%v';",
+					"ALTER TABLE %v.%v FREEZE PARTITION '%v' WITH NAME 'backup';",
 					partition.databaseName,
 					partition.tableName,
 					partition.partID,
@@ -241,7 +241,7 @@ func (fz *FreezePartitions) Run(databaseConnection *sqlx.DB) error {
 			}
 
 			err = copyDirectory(
-				inDirectory+"/shadow/1/data/"+partition.databaseName,
+				inDirectory+"/shadow/backup/data/"+partition.databaseName,
 				outDirectory+"/partitions/"+partition.databaseName)
 			if err != nil {
 				return err
@@ -274,7 +274,7 @@ func (gp *GetPartitions) Run(databaseConnection *sqlx.DB) error {
 
 	err = databaseConnection.Select(&partitions,
 		fmt.Sprintf("select "+
-			"partition, "+
+			"DISTINCT partition, "+
 			"table, "+
 			"database "+
 			"FROM system.parts WHERE active AND database ='%v';", gp.Database))
