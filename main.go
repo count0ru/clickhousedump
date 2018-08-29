@@ -149,7 +149,7 @@ func replaceStringInDirectoryFiles(filesPath string, oldString string, newString
 	for _, fileDescriptor := range fileDescriptors {
 		if !fileDescriptor.IsDir() && strings.HasSuffix(fileDescriptor.Name(), ".sql") {
 
-			fileContent, err := ioutil.ReadFile(filesPath+"/"+fileDescriptor.Name())
+			fileContent, err := ioutil.ReadFile(filesPath + "/" + fileDescriptor.Name())
 			if err != nil {
 				return err
 			}
@@ -159,15 +159,14 @@ func replaceStringInDirectoryFiles(filesPath string, oldString string, newString
 				oldString,
 				newString,
 				-1,
-				)
+			)
 
-			err = ioutil.WriteFile(filesPath + "/" + fileDescriptor.Name(), []byte(newContent),0)
+			err = ioutil.WriteFile(filesPath+"/"+fileDescriptor.Name(), []byte(newContent), 0)
 			if err != nil {
 				return err
 			}
 		}
 	}
-
 
 	return nil
 }
@@ -285,7 +284,6 @@ func (fz *FreezePartitions) Run(databaseConnection *sqlx.DB) error {
 			if err != nil {
 				return err
 			}
-
 
 			// copy metadata files
 			Info.Printf("copy data from %v to %v",
