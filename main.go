@@ -135,6 +135,43 @@ func copyFile(sourceFile string, destinationFile string) error {
 	return nil
 }
 
+// Replace string in all files in directory
+func replaceStringInDirectoryFiles(filesPath string, oldString string, newString string) error {
+	var (
+		err             error
+		fileDescriptors []os.FileInfo
+	)
+
+	if fileDescriptors, err = ioutil.ReadDir(filesPath); err != nil {
+		return err
+	}
+
+	for _, fileDescriptor := range fileDescriptors {
+		if !fileDescriptor.IsDir() && strings.HasSuffix(fileDescriptor.Name(), ".sql") {
+
+			fileContent, err := ioutil.ReadFile(filesPath+"/"+fileDescriptor.Name())
+			if err != nil {
+				return err
+			}
+
+			newContent := strings.Replace(
+				string(fileContent),
+				oldString,
+				newString,
+				-1,
+				)
+
+			err = ioutil.WriteFile(filesPath + "/" + fileDescriptor.Name(), []byte(newContent),0)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+
+	return nil
+}
+
 // Create list of directories
 func createDirectories(directoriesList []string) (error, string) {
 	for _, currentDirectory := range directoriesList {
@@ -238,6 +275,7 @@ func (fz *FreezePartitions) Run(databaseConnection *sqlx.DB) error {
 				return err
 			}
 
+			// copy partition files
 			Info.Printf("copy data from %v to %v",
 				inDirectory+"/shadow/backup/data/"+partition.databaseName,
 				outDirectory+"/partitions/"+partition.databaseName)
@@ -248,6 +286,8 @@ func (fz *FreezePartitions) Run(databaseConnection *sqlx.DB) error {
 				return err
 			}
 
+
+			// copy metadata files
 			Info.Printf("copy data from %v to %v",
 				inDirectory+"/metadata/"+partition.databaseName,
 				outDirectory+"/metadata/"+partition.databaseName)
@@ -256,6 +296,16 @@ func (fz *FreezePartitions) Run(databaseConnection *sqlx.DB) error {
 				outDirectory+"/metadata/"+partition.databaseName)
 			if err != nil {
 				return err
+			}
+
+			// replace ATTACH TABLE to CREATE TABLE in metadata files
+			err = replaceStringInDirectoryFiles(
+				outDirectory+"/metadata/"+partition.databaseName,
+				"ATTACH TABLE",
+				"CREATE TABLE",
+			)
+			if err != nil {
+				Error.Printf("can't replace string in metadata files, %v", err)
 			}
 		}
 	}
@@ -403,7 +453,6 @@ func main() {
 		if err != nil {
 			Error.Printf("can't freeze partition, %v", err)
 		}
-
 	} else if *argRestore && !*argBackup {
 		fmt.Println("Run in restore mode")
 
