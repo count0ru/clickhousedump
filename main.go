@@ -46,6 +46,12 @@ type FreezePartitions struct {
 	DestinationDirectory string
 }
 
+type restoreDatabase struct {
+	DatabaseName         string
+	SourceDirectory      string
+	DestinationDirectory string
+}
+
 type GetDatabasesList struct {
 	Result []dataBase
 }
@@ -312,6 +318,54 @@ func (fz *FreezePartitions) Run(databaseConnection *sqlx.DB) error {
 
 }
 
+// Restore database
+func (rb *restoreDatabase) Run(databaseConnection *sqlx.DB) error {
+
+	var (
+		err        error
+		fileDescriptors []os.FileInfo
+	)
+
+	Info.Printf("try to create database %v", rb.DatabaseName)
+	_, err = databaseConnection.Exec(fmt.Sprintf("CREATE DATABASE %v", rb.DatabaseName))
+	if err != nil {
+		Error.Printf("failed to create database %v", rb.DatabaseName)
+		return err
+	}
+
+	if fileDescriptors, err = ioutil.ReadDir(rb.SourceDirectory + "/metadata/" + rb.DatabaseName); err != nil {
+		return err
+	}
+	if err != nil {
+		Error.Printf("can't replace string in metadata files, %v", err)
+	}
+
+	for _, fileDescriptor := range fileDescriptors {
+		if !fileDescriptor.IsDir() && strings.HasSuffix(fileDescriptor.Name(), ".sql") {
+
+			Info.Printf("try to read from metadata file %v", fileDescriptor.Name())
+			fileContent, err := ioutil.ReadFile(rb.SourceDirectory + "/metadata/" + rb.DatabaseName + "/" + fileDescriptor.Name())
+			if err != nil {
+				Info.Printf("cant't read from metadata file %v", fileDescriptor.Name())
+				return err
+			}
+
+			Info.Printf("try to apply metadata from file %v", fileDescriptor.Name())
+			_, err = databaseConnection.Exec(
+				strings.Replace(
+					string(fileContent[:]),
+					"CREATE TABLE ",
+					"CREATE TABLE " + rb.DatabaseName + ".",
+					-1))
+			if err != nil {
+				Info.Printf("cant't apply metadata file %v", fileDescriptor.Name())
+				return err
+			}
+		}
+	}
+	return nil
+
+}
 // Get list of partitions for tables
 func (gp *GetPartitions) Run(databaseConnection *sqlx.DB) error {
 
