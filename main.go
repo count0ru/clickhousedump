@@ -507,7 +507,39 @@ func main() {
 			Error.Printf("can't freeze partition, %v", err)
 		}
 	} else if *argRestore && !*argBackup {
+
 		fmt.Println("Run in restore mode")
+
+		if *argInDirectory == "" {
+			Error.Fatalln("please set source directory")
+		} else {
+			inputDirectory = *argInDirectory
+		}
+
+		if *argOutDirectory == "" {
+			outputDirectory = "/var/lib/clickhouse"
+		} else {
+			outputDirectory = *argOutDirectory
+		}
+
+		if *argDataBase == "" {
+			Error.Fatalln("please set database for restore")
+		}
+
+		err, noDirectory := isDirectoryInListExist(inputDirectory, outputDirectory)
+		if err != nil {
+			Error.Fatalf("%v not found", noDirectory)
+		}
+
+		cmdRestoreDatabase := restoreDatabase{
+			*argDataBase,
+			inputDirectory,
+			outputDirectory,
+			}
+		err = cmdRestoreDatabase.Run(clickhouseConnection)
+		if err != nil {
+			Error.Printf("can't restore database, %v", err)
+		}
 
 	} else if !*argRestore && !*argBackup {
 		fmt.Println("Choose mode (restore tor backup)")
