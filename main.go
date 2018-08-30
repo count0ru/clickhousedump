@@ -204,6 +204,7 @@ func isExists(filePath string) (bool, error) {
 
 // Check directory list is exist
 func isDirectoryInListExist(directoriesList ...string) (error, string) {
+	Info.Println(directoriesList)
 	for _, currentDirectory := range directoriesList {
 		_, err := isExists(currentDirectory)
 		if err != nil {
