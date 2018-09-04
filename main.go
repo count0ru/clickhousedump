@@ -202,6 +202,16 @@ func isExists(filePath string) (bool, error) {
 	return true, err
 }
 
+// Check partition exist in partition list
+func isPartExists(currentPartitions []partitionDescribe, newPart partitionDescribe) bool {
+	for _, partitionID := range currentPartitions {
+		if partitionID.partID == newPart.partID {
+			return true
+		}
+
+	}
+	return false
+}
 // Check directory list is exist
 func isDirectoryInListExist(directoriesList ...string) (error, string) {
 	Info.Println(directoriesList)
