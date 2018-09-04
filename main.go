@@ -430,7 +430,7 @@ func (rb *restoreDatabase) Run(databaseConnection *sqlx.DB) error {
 				strings.Replace(
 					string(fileContent[:]),
 					"CREATE TABLE ",
-					"CREATE TABLE " + rb.DatabaseName + ".",
+					"CREATE TABLE "+rb.DatabaseName+".",
 					-1))
 			if err != nil {
 				Info.Printf("cant't apply metadata file %v", fileDescriptor.Name())
@@ -438,11 +438,41 @@ func (rb *restoreDatabase) Run(databaseConnection *sqlx.DB) error {
 			} else {
 				Info.Println("success")
 			}
+
+			Info.Printf("try to attach partitions for %v", rb.DatabaseName+"."+fileDescriptor.Name())
+			partitionsList, err := getPartitionsListFromDir(rb.SourceDirectory, rb.DestinationDirectory, rb.DatabaseName)
+			if err != nil {
+				Info.Printf("cant't get partitions list for attach from backup directory for database %v", rb.DatabaseName)
+				return err
+			} else {
+				Info.Println("success")
+			}
+
+			for _, attachedPart := range partitionsList {
+				// attach partition
+				Info.Printf("ALTER TABLE %v.%v ATTACH PARTITION '%v'",
+					attachedPart.databaseName,
+					attachedPart.tableName,
+					attachedPart.partID)
+				_, err = databaseConnection.Exec(
+					"ALTER TABLE "+attachedPart.databaseName+"."+attachedPart.tableName+" ATTACH PARTITION '"+attachedPart.partID+"';", -1)
+				if err != nil {
+					Info.Printf("cant't attach partition %v to %v table in %v database",
+						attachedPart.partID,
+						attachedPart.tableName,
+						attachedPart.databaseName, err)
+					return err
+				} else {
+					Info.Println("success")
+				}
+			}
+
 		}
 	}
 	return nil
 
 }
+
 // Get list of partitions for tables
 func (gp *GetPartitions) Run(databaseConnection *sqlx.DB) error {
 
