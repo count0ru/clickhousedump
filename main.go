@@ -398,7 +398,7 @@ func (gp *GetPartitions) Run(databaseConnection *sqlx.DB) error {
 	}
 
 	for _, item := range partitions {
-		if !strings.HasPrefix(item.Table, ".") {
+		if !strings.HasPrefix(item.Table, "%2E") {
 			Info.Printf("found %v partition of %v table in %v database", item.Partition, item.Table, item.Database)
 			gp.Result = append(gp.Result, partitionDescribe{
 				partID:       item.Partition,
