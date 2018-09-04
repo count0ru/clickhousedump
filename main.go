@@ -332,6 +332,8 @@ func (rb *restoreDatabase) Run(databaseConnection *sqlx.DB) error {
 	if err != nil {
 		Error.Printf("failed to create database %v", rb.DatabaseName)
 		return err
+	} else {
+		Info.Println("success")
 	}
 
 	if fileDescriptors, err = ioutil.ReadDir(rb.SourceDirectory + "/metadata/" + rb.DatabaseName); err != nil {
@@ -339,6 +341,8 @@ func (rb *restoreDatabase) Run(databaseConnection *sqlx.DB) error {
 	}
 	if err != nil {
 		Error.Printf("can't replace string in metadata files, %v", err)
+	} else {
+		Info.Println("success")
 	}
 
 	for _, fileDescriptor := range fileDescriptors {
@@ -349,6 +353,8 @@ func (rb *restoreDatabase) Run(databaseConnection *sqlx.DB) error {
 			if err != nil {
 				Info.Printf("cant't read from metadata file %v", fileDescriptor.Name())
 				return err
+			} else {
+				Info.Println("success")
 			}
 
 			Info.Printf("try to apply metadata from file %v", fileDescriptor.Name())
@@ -361,6 +367,8 @@ func (rb *restoreDatabase) Run(databaseConnection *sqlx.DB) error {
 			if err != nil {
 				Info.Printf("cant't apply metadata file %v", fileDescriptor.Name())
 				return err
+			} else {
+				Info.Println("success")
 			}
 		}
 	}
