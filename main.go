@@ -212,6 +212,64 @@ func isPartExists(currentPartitions []partitionDescribe, newPart partitionDescri
 	}
 	return false
 }
+
+// Get partition list from directory with parts
+func getPartitionsListFromDir(sourceDirectory string, desinationDirectory string, databaseName string) ([]partitionDescribe, error) {
+
+	var (
+		err      error
+		tablesFD []os.FileInfo
+		partsFD  []os.FileInfo
+		result   []partitionDescribe
+	)
+
+	Info.Println(sourceDirectory + "/" + databaseName)
+	if tablesFD, err = ioutil.ReadDir(sourceDirectory + "/partitions/" + databaseName); err != nil {
+		Error.Println(err)
+	}
+
+	for _, tableDescriptor := range tablesFD {
+		if tableDescriptor.IsDir() {
+			Info.Println(sourceDirectory + "/partitions/" + databaseName + "/" + tableDescriptor.Name())
+			if partsFD, err = ioutil.ReadDir(sourceDirectory + "/partitions/" + databaseName + "/" + tableDescriptor.Name()); err != nil {
+				Info.Println(err)
+			}
+			for _, partDescriptor := range partsFD {
+				if partDescriptor.IsDir() && partDescriptor.Name() != "detached" {
+
+					// copy partition files to detached  directory
+					Info.Printf("copy partition from %v to %v",
+						sourceDirectory+"/partitions/"+databaseName+"/"+tableDescriptor.Name(),
+						desinationDirectory+"/data/"+databaseName+"/"+tableDescriptor.Name()+"/detached")
+					err = copyDirectory(
+						sourceDirectory+"/partitions/"+databaseName+"/"+tableDescriptor.Name(),
+						desinationDirectory+"/data/"+databaseName+"/"+tableDescriptor.Name()+"/detached")
+					if err != nil {
+						return result, err
+					}
+					// append partition to result part list
+					if !isPartExists(result,
+						partitionDescribe{
+							databaseName: databaseName,
+							tableName:    tableDescriptor.Name(),
+							partID:       partDescriptor.Name()[:6],
+						}) {
+						result = append(result,
+							partitionDescribe{
+								databaseName: databaseName,
+								tableName:    tableDescriptor.Name(),
+								partID:       partDescriptor.Name()[:6],
+							})
+					}
+				}
+			}
+		}
+	}
+
+	return result, nil
+
+}
+
 // Check directory list is exist
 func isDirectoryInListExist(directoriesList ...string) (error, string) {
 	Info.Println(directoriesList)
