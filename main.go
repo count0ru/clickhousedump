@@ -323,7 +323,7 @@ func (fz *FreezePartitions) Run(databaseConnection *sqlx.DB) error {
 func (rb *restoreDatabase) Run(databaseConnection *sqlx.DB) error {
 
 	var (
-		err        error
+		err             error
 		fileDescriptors []os.FileInfo
 	)
 
@@ -535,7 +535,7 @@ func main() {
 			*argDataBase,
 			inputDirectory,
 			outputDirectory,
-			}
+		}
 		err = cmdRestoreDatabase.Run(clickhouseConnection)
 		if err != nil {
 			Error.Printf("can't restore database, %v", err)
