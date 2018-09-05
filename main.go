@@ -214,7 +214,7 @@ func isPartExists(currentPartitions []partitionDescribe, newPart partitionDescri
 }
 
 // Get partition list from directory with parts
-func getPartitionsListFromDir(sourceDirectory string, desinationDirectory string, databaseName string, tableName string) ([]partitionDescribe, error) {
+func getPartitionsListFromDir(sourceDirectory string, destinationDirectory string, databaseName string, tableName string) ([]partitionDescribe, error) {
 
 	var (
 		err     error
@@ -232,10 +232,10 @@ func getPartitionsListFromDir(sourceDirectory string, desinationDirectory string
 			// copy partition files to detached  directory
 			Info.Printf("copy partition from %v to %v",
 				sourceDirectory+"/partitions/"+databaseName+"/"+tableName,
-				desinationDirectory+"/data/"+databaseName+"/"+tableName+"/detached")
+				destinationDirectory+"/data/"+databaseName+"/"+tableName+"/detached")
 			err = copyDirectory(
 				sourceDirectory+"/partitions/"+databaseName+"/"+tableName,
-				desinationDirectory+"/data/"+databaseName+"/"+tableName+"/detached")
+				destinationDirectory+"/data/"+databaseName+"/"+tableName+"/detached")
 			if err != nil {
 				return result, err
 			}
