@@ -214,54 +214,44 @@ func isPartExists(currentPartitions []partitionDescribe, newPart partitionDescri
 }
 
 // Get partition list from directory with parts
-func getPartitionsListFromDir(sourceDirectory string, desinationDirectory string, databaseName string) ([]partitionDescribe, error) {
+func getPartitionsListFromDir(sourceDirectory string, desinationDirectory string, databaseName string, tableName string) ([]partitionDescribe, error) {
 
 	var (
-		err      error
-		tablesFD []os.FileInfo
-		partsFD  []os.FileInfo
-		result   []partitionDescribe
+		err     error
+		partsFD []os.FileInfo
+		result  []partitionDescribe
 	)
 
-	Info.Println(sourceDirectory + "/" + databaseName)
-	if tablesFD, err = ioutil.ReadDir(sourceDirectory + "/partitions/" + databaseName); err != nil {
-		Error.Println(err)
+	Info.Println(sourceDirectory + "/partitions/" + databaseName + "/" + tableName)
+	if partsFD, err = ioutil.ReadDir(sourceDirectory + "/partitions/" + databaseName + "/" + tableName); err != nil {
+		Info.Println(err)
 	}
+	for _, partDescriptor := range partsFD {
+		if partDescriptor.IsDir() && partDescriptor.Name() != "detached" {
 
-	for _, tableDescriptor := range tablesFD {
-		if tableDescriptor.IsDir() {
-			Info.Println(sourceDirectory + "/partitions/" + databaseName + "/" + tableDescriptor.Name())
-			if partsFD, err = ioutil.ReadDir(sourceDirectory + "/partitions/" + databaseName + "/" + tableDescriptor.Name()); err != nil {
-				Info.Println(err)
+			// copy partition files to detached  directory
+			Info.Printf("copy partition from %v to %v",
+				sourceDirectory+"/partitions/"+databaseName+"/"+tableName,
+				desinationDirectory+"/data/"+databaseName+"/"+tableName+"/detached")
+			err = copyDirectory(
+				sourceDirectory+"/partitions/"+databaseName+"/"+tableName,
+				desinationDirectory+"/data/"+databaseName+"/"+tableName+"/detached")
+			if err != nil {
+				return result, err
 			}
-			for _, partDescriptor := range partsFD {
-				if partDescriptor.IsDir() && partDescriptor.Name() != "detached" {
-
-					// copy partition files to detached  directory
-					Info.Printf("copy partition from %v to %v",
-						sourceDirectory+"/partitions/"+databaseName+"/"+tableDescriptor.Name(),
-						desinationDirectory+"/data/"+databaseName+"/"+tableDescriptor.Name()+"/detached")
-					err = copyDirectory(
-						sourceDirectory+"/partitions/"+databaseName+"/"+tableDescriptor.Name(),
-						desinationDirectory+"/data/"+databaseName+"/"+tableDescriptor.Name()+"/detached")
-					if err != nil {
-						return result, err
-					}
-					// append partition to result part list
-					if !isPartExists(result,
-						partitionDescribe{
-							databaseName: databaseName,
-							tableName:    tableDescriptor.Name(),
-							partID:       partDescriptor.Name()[:6],
-						}) {
-						result = append(result,
-							partitionDescribe{
-								databaseName: databaseName,
-								tableName:    tableDescriptor.Name(),
-								partID:       partDescriptor.Name()[:6],
-							})
-					}
-				}
+			// append partition to result part list
+			if !isPartExists(result,
+				partitionDescribe{
+					databaseName: databaseName,
+					tableName:    tableName,
+					partID:       partDescriptor.Name()[:6],
+				}) {
+				result = append(result,
+					partitionDescribe{
+						databaseName: databaseName,
+						tableName:    tableName,
+						partID:       partDescriptor.Name()[:6],
+					})
 			}
 		}
 	}
@@ -439,10 +429,12 @@ func (rb *restoreDatabase) Run(databaseConnection *sqlx.DB) error {
 				Info.Println("success")
 			}
 
+			var tableName = strings.Replace(fileDescriptor.Name(), ".sql", "", -1)
+
 			Info.Printf("try to attach partitions for %v", rb.DatabaseName+"."+fileDescriptor.Name())
-			partitionsList, err := getPartitionsListFromDir(rb.SourceDirectory, rb.DestinationDirectory, rb.DatabaseName)
+			partitionsList, err := getPartitionsListFromDir(rb.SourceDirectory, rb.DestinationDirectory, rb.DatabaseName, tableName)
 			if err != nil {
-				Info.Printf("cant't get partitions list for attach from backup directory for database %v", rb.DatabaseName)
+				Info.Printf("cant't get partitions list for attach from backup directory for table %v.%v", rb.DatabaseName, tableName)
 				return err
 			} else {
 				Info.Println("success")
