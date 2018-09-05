@@ -46,6 +46,12 @@ type FreezePartitions struct {
 	DestinationDirectory string
 }
 
+type restoreDatabase struct {
+	DatabaseName         string
+	SourceDirectory      string
+	DestinationDirectory string
+}
+
 type GetDatabasesList struct {
 	Result []dataBase
 }
@@ -73,7 +79,7 @@ func Init(
 		log.Ldate|log.Ltime|log.Lshortfile)
 }
 
-// recursive copy directory and files
+// Recursive copy directory and files
 func copyDirectory(sourceDirectory string, destinationDirectory string) error {
 
 	var (
@@ -109,14 +115,14 @@ func copyDirectory(sourceDirectory string, destinationDirectory string) error {
 	return nil
 }
 
-// copy files
+// Copy files
 func copyFile(sourceFile string, destinationFile string) error {
 
 	var err error
 
 	fromFile, err := os.Open(sourceFile)
 	if err != nil {
-		return  err
+		return err
 	}
 
 	defer fromFile.Close()
@@ -135,7 +141,43 @@ func copyFile(sourceFile string, destinationFile string) error {
 	return nil
 }
 
-//Create list of directories
+// Replace string in all files in directory
+func replaceStringInDirectoryFiles(filesPath string, oldString string, newString string) error {
+	var (
+		err             error
+		fileDescriptors []os.FileInfo
+	)
+
+	if fileDescriptors, err = ioutil.ReadDir(filesPath); err != nil {
+		return err
+	}
+
+	for _, fileDescriptor := range fileDescriptors {
+		if !fileDescriptor.IsDir() && strings.HasSuffix(fileDescriptor.Name(), ".sql") {
+
+			fileContent, err := ioutil.ReadFile(filesPath + "/" + fileDescriptor.Name())
+			if err != nil {
+				return err
+			}
+
+			newContent := strings.Replace(
+				string(fileContent),
+				oldString,
+				newString,
+				-1,
+			)
+
+			err = ioutil.WriteFile(filesPath+"/"+fileDescriptor.Name(), []byte(newContent), 0)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+// Create list of directories
 func createDirectories(directoriesList []string) (error, string) {
 	for _, currentDirectory := range directoriesList {
 		directoryExists, err := isExists(currentDirectory)
@@ -160,8 +202,67 @@ func isExists(filePath string) (bool, error) {
 	return true, err
 }
 
-//Check directory list is exist
+// Check partition exist in partition list
+func isPartExists(currentPartitions []partitionDescribe, newPart partitionDescribe) bool {
+	for _, partitionID := range currentPartitions {
+		if partitionID.partID == newPart.partID {
+			return true
+		}
+
+	}
+	return false
+}
+
+// Get partition list from directory with parts
+func getPartitionsListFromDir(sourceDirectory string, destinationDirectory string, databaseName string, tableName string) ([]partitionDescribe, error) {
+
+	var (
+		err     error
+		partsFD []os.FileInfo
+		result  []partitionDescribe
+	)
+
+	Info.Println(sourceDirectory + "/partitions/" + databaseName + "/" + tableName)
+	if partsFD, err = ioutil.ReadDir(sourceDirectory + "/partitions/" + databaseName + "/" + tableName); err != nil {
+		Info.Println(err)
+	}
+	for _, partDescriptor := range partsFD {
+		if partDescriptor.IsDir() && partDescriptor.Name() != "detached" {
+
+			// copy partition files to detached  directory
+			Info.Printf("copy partition from %v to %v",
+				sourceDirectory+"/partitions/"+databaseName+"/"+tableName,
+				destinationDirectory+"/data/"+databaseName+"/"+tableName+"/detached")
+			err = copyDirectory(
+				sourceDirectory+"/partitions/"+databaseName+"/"+tableName,
+				destinationDirectory+"/data/"+databaseName+"/"+tableName+"/detached")
+			if err != nil {
+				return result, err
+			}
+			// append partition to result part list
+			if !isPartExists(result,
+				partitionDescribe{
+					databaseName: databaseName,
+					tableName:    tableName,
+					partID:       partDescriptor.Name()[:6],
+				}) {
+				result = append(result,
+					partitionDescribe{
+						databaseName: databaseName,
+						tableName:    tableName,
+						partID:       partDescriptor.Name()[:6],
+					})
+			}
+		}
+	}
+
+	return result, nil
+
+}
+
+// Check directory list is exist
 func isDirectoryInListExist(directoriesList ...string) (error, string) {
+	Info.Println(directoriesList)
 	for _, currentDirectory := range directoriesList {
 		_, err := isExists(currentDirectory)
 		if err != nil {
@@ -171,7 +272,7 @@ func isDirectoryInListExist(directoriesList ...string) (error, string) {
 	return nil, ""
 }
 
-//Get databases list from server
+// Get databases list from server
 func (gd *GetDatabasesList) Run(databaseConnection *sqlx.DB) error {
 
 	var (
@@ -196,7 +297,7 @@ func (gd *GetDatabasesList) Run(databaseConnection *sqlx.DB) error {
 
 }
 
-//Freeze partitions and create hardlink in $CLICKHOUSE_DIRECTORY/shadow
+// Freeze partitions and create hardlink in $CLICKHOUSE_DIRECTORY/shadow
 func (fz *FreezePartitions) Run(databaseConnection *sqlx.DB) error {
 
 	for _, partition := range fz.Partitions {
@@ -209,7 +310,7 @@ func (fz *FreezePartitions) Run(databaseConnection *sqlx.DB) error {
 			)
 		} else {
 
-			//freeze partitions
+			// freeze partitions
 			_, err := databaseConnection.Exec(
 				fmt.Sprintf(
 					"ALTER TABLE %v.%v FREEZE PARTITION '%v' WITH NAME 'backup';",
@@ -221,10 +322,9 @@ func (fz *FreezePartitions) Run(databaseConnection *sqlx.DB) error {
 				return err
 			}
 
-			//copy partition files and metadata
+			// copy partition files and metadata
 			inDirectory := fz.SourceDirectory
 			outDirectory := fz.DestinationDirectory
-
 
 			directoryList := []string{
 				outDirectory + "/partitions",
@@ -239,6 +339,7 @@ func (fz *FreezePartitions) Run(databaseConnection *sqlx.DB) error {
 				return err
 			}
 
+			// copy partition files
 			Info.Printf("copy data from %v to %v",
 				inDirectory+"/shadow/backup/data/"+partition.databaseName,
 				outDirectory+"/partitions/"+partition.databaseName)
@@ -249,6 +350,7 @@ func (fz *FreezePartitions) Run(databaseConnection *sqlx.DB) error {
 				return err
 			}
 
+			// copy metadata files
 			Info.Printf("copy data from %v to %v",
 				inDirectory+"/metadata/"+partition.databaseName,
 				outDirectory+"/metadata/"+partition.databaseName)
@@ -257,6 +359,16 @@ func (fz *FreezePartitions) Run(databaseConnection *sqlx.DB) error {
 				outDirectory+"/metadata/"+partition.databaseName)
 			if err != nil {
 				return err
+			}
+
+			// replace ATTACH TABLE to CREATE TABLE in metadata files
+			err = replaceStringInDirectoryFiles(
+				outDirectory+"/metadata/"+partition.databaseName,
+				"ATTACH TABLE",
+				"CREATE TABLE",
+			)
+			if err != nil {
+				Error.Printf("can't replace string in metadata files, %v", err)
 			}
 		}
 	}
@@ -265,7 +377,95 @@ func (fz *FreezePartitions) Run(databaseConnection *sqlx.DB) error {
 
 }
 
-//Get list of partitions for tables
+// Restore database
+func (rb *restoreDatabase) Run(databaseConnection *sqlx.DB) error {
+
+	var (
+		err             error
+		fileDescriptors []os.FileInfo
+	)
+
+	Info.Printf("try to create database %v", rb.DatabaseName)
+	_, err = databaseConnection.Exec(fmt.Sprintf("CREATE DATABASE %v", rb.DatabaseName))
+	if err != nil {
+		Error.Printf("failed to create database %v", rb.DatabaseName)
+		return err
+	} else {
+		Info.Println("success")
+	}
+
+	if fileDescriptors, err = ioutil.ReadDir(rb.SourceDirectory + "/metadata/" + rb.DatabaseName); err != nil {
+		return err
+	}
+	if err != nil {
+		Error.Printf("can't replace string in metadata files, %v", err)
+	} else {
+		Info.Println("success")
+	}
+
+	for _, fileDescriptor := range fileDescriptors {
+		if !fileDescriptor.IsDir() && strings.HasSuffix(fileDescriptor.Name(), ".sql") {
+
+			Info.Printf("try to read from metadata file %v", fileDescriptor.Name())
+			fileContent, err := ioutil.ReadFile(rb.SourceDirectory + "/metadata/" + rb.DatabaseName + "/" + fileDescriptor.Name())
+			if err != nil {
+				Info.Printf("cant't read from metadata file %v", fileDescriptor.Name())
+				return err
+			} else {
+				Info.Println("success")
+			}
+
+			Info.Printf("try to apply metadata from file %v", fileDescriptor.Name())
+			_, err = databaseConnection.Exec(
+				strings.Replace(
+					string(fileContent[:]),
+					"CREATE TABLE ",
+					"CREATE TABLE "+rb.DatabaseName+".",
+					-1))
+			if err != nil {
+				Info.Printf("cant't apply metadata file %v", fileDescriptor.Name())
+				return err
+			} else {
+				Info.Println("success")
+			}
+
+			var tableName = strings.Replace(fileDescriptor.Name(), ".sql", "", -1)
+
+			Info.Printf("try to attach partitions for %v", rb.DatabaseName+"."+fileDescriptor.Name())
+			partitionsList, err := getPartitionsListFromDir(rb.SourceDirectory, rb.DestinationDirectory, rb.DatabaseName, tableName)
+			if err != nil {
+				Info.Printf("cant't get partitions list for attach from backup directory for table %v.%v", rb.DatabaseName, tableName)
+				return err
+			} else {
+				Info.Println("success")
+			}
+
+			for _, attachedPart := range partitionsList {
+				// attach partition
+				Info.Printf("ALTER TABLE %v.%v ATTACH PARTITION '%v'",
+					attachedPart.databaseName,
+					attachedPart.tableName,
+					attachedPart.partID)
+				_, err = databaseConnection.Exec(
+					"ALTER TABLE " + attachedPart.databaseName + "." + attachedPart.tableName + " ATTACH PARTITION '" + attachedPart.partID + "';")
+				if err != nil {
+					Info.Printf("cant't attach partition %v to %v table in %v database, %v",
+						attachedPart.partID,
+						attachedPart.tableName,
+						attachedPart.databaseName, err)
+					return err
+				} else {
+					Info.Println("success")
+				}
+			}
+
+		}
+	}
+	return nil
+
+}
+
+// Get list of partitions for tables
 func (gp *GetPartitions) Run(databaseConnection *sqlx.DB) error {
 
 	var (
@@ -288,7 +488,7 @@ func (gp *GetPartitions) Run(databaseConnection *sqlx.DB) error {
 	}
 
 	for _, item := range partitions {
-		if !strings.HasPrefix(item.Table, ".") {
+		if !strings.HasPrefix(item.Table, "%2E") {
 			Info.Printf("found %v partition of %v table in %v database", item.Partition, item.Table, item.Database)
 			gp.Result = append(gp.Result, partitionDescribe{
 				partID:       item.Partition,
@@ -334,7 +534,7 @@ func main() {
 	// make connection to clickhouse server
 	clickhouseConnection, err := sqlx.Open("clickhouse", ClickhouseConnectionString)
 	if err != nil {
-		Error.Fatalf("can't connect to clickouse server, v%", err)
+		Error.Fatalf("can't connect to clickouse server, %v", err)
 	}
 
 	defer clickhouseConnection.Close()
@@ -347,7 +547,7 @@ func main() {
 		}
 	}
 
-	//Determine run mode
+	// determine run mode
 	if *argBackup && !*argRestore { //Backup mode
 
 		Info.Println("Run in backup mode")
@@ -371,7 +571,7 @@ func main() {
 
 		var partitionsList []partitionDescribe
 
-		//Get partitions list for databases or database (--db argument)
+		// get partitions list for databases or database (--db argument)
 		if *argDataBase == "" {
 			databaseList := GetDatabasesList{}
 			err = databaseList.Run(clickhouseConnection)
@@ -396,17 +596,48 @@ func main() {
 		}
 
 		cmdFreezePartitions := FreezePartitions{
-			Partitions: partitionsList,
-			SourceDirectory: inputDirectory,
+			Partitions:           partitionsList,
+			SourceDirectory:      inputDirectory,
 			DestinationDirectory: outputDirectory,
 		}
 		err = cmdFreezePartitions.Run(clickhouseConnection)
 		if err != nil {
 			Error.Printf("can't freeze partition, %v", err)
 		}
-
 	} else if *argRestore && !*argBackup {
+
 		fmt.Println("Run in restore mode")
+
+		if *argInDirectory == "" {
+			Error.Fatalln("please set source directory")
+		} else {
+			inputDirectory = *argInDirectory
+		}
+
+		if *argOutDirectory == "" {
+			outputDirectory = "/var/lib/clickhouse"
+		} else {
+			outputDirectory = *argOutDirectory
+		}
+
+		if *argDataBase == "" {
+			Error.Fatalln("please set database for restore")
+		}
+
+		err, noDirectory := isDirectoryInListExist(inputDirectory, outputDirectory)
+		if err != nil {
+			Error.Fatalf("%v not found", noDirectory)
+		}
+
+		cmdRestoreDatabase := restoreDatabase{
+			*argDataBase,
+			inputDirectory,
+			outputDirectory,
+		}
+		err = cmdRestoreDatabase.Run(clickhouseConnection)
+		if err != nil {
+			Error.Printf("can't restore database, %v", err)
+		}
 
 	} else if !*argRestore && !*argBackup {
 		fmt.Println("Choose mode (restore tor backup)")
