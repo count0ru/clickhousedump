@@ -457,7 +457,7 @@ func (rb *restoreDatabase) Run(databaseConnection *sqlx.DB) error {
 				_, err = databaseConnection.Exec(
 					"ALTER TABLE "+attachedPart.databaseName+"."+attachedPart.tableName+" ATTACH PARTITION '"+attachedPart.partID+"';")
 				if err != nil {
-					Info.Printf("cant't attach partition %v to %v table in %v database",
+					Info.Printf("cant't attach partition %v to %v table in %v database, %v",
 						attachedPart.partID,
 						attachedPart.tableName,
 						attachedPart.databaseName, err)
