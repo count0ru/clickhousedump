@@ -542,7 +542,7 @@ func main() {
 	// make connection to clickhouse server
 	clickhouseConnection, err := sqlx.Open("clickhouse", ClickhouseConnectionString)
 	if err != nil {
-		Error.Fatalf("can't connect to clickouse server, v%", err)
+		Error.Fatalf("can't connect to clickouse server, %v", err)
 	}
 
 	defer clickhouseConnection.Close()
