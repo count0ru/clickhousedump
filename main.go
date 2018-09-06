@@ -449,12 +449,15 @@ func (rb *restoreDatabase) Run(databaseConnection *sqlx.DB) error {
 				Info.Println("success")
 			}
 
-			var tableName = strings.Replace(metadataFile.fileName, ".sql", "", -1)
-
 			Info.Printf("try to attach partitions for %v", rb.DatabaseName+"."+metadataFile.fileName)
-			partitionsList, err := getPartitionsListFromDir(rb.SourceDirectory, rb.DestinationDirectory, rb.DatabaseName, tableName)
+			partitionsList, err := getPartitionsListFromDir(
+				rb.SourceDirectory,
+				rb.DestinationDirectory,
+				rb.DatabaseName,
+				metadataFile.objectName,
+			)
 			if err != nil {
-				Info.Printf("cant't get partitions list for attach from backup directory for table %v.%v", rb.DatabaseName, tableName)
+				Info.Printf("cant't get partitions list for attach from backup directory for table %v.%v", rb.DatabaseName, metadataFile.objectName)
 				return err
 			} else {
 				Info.Println("success")
@@ -493,36 +496,6 @@ func (rb *restoreDatabase) Run(databaseConnection *sqlx.DB) error {
 				return err
 			} else {
 				Info.Println("success")
-			}
-
-			var tableName = strings.Replace(metadataFile.fileName, ".sql", "", -1)
-
-			Info.Printf("try to attach partitions for %v", rb.DatabaseName+"."+metadataFile.fileName)
-			partitionsList, err := getPartitionsListFromDir(rb.SourceDirectory, rb.DestinationDirectory, rb.DatabaseName, tableName)
-			if err != nil {
-				Info.Printf("cant't get partitions list for attach from backup directory for table %v.%v", rb.DatabaseName, tableName)
-				return err
-			} else {
-				Info.Println("success")
-			}
-
-			for _, attachedPart := range partitionsList {
-				// attach partition
-				Info.Printf("ALTER TABLE %v.%v ATTACH PARTITION '%v'",
-					attachedPart.databaseName,
-					attachedPart.tableName,
-					attachedPart.partID)
-				_, err = databaseConnection.Exec(
-					"ALTER TABLE " + attachedPart.databaseName + "." + attachedPart.tableName + " ATTACH PARTITION '" + attachedPart.partID + "';")
-				if err != nil {
-					Info.Printf("cant't attach partition %v to %v table in %v database, %v",
-						attachedPart.partID,
-						attachedPart.tableName,
-						attachedPart.databaseName, err)
-					return err
-				} else {
-					Info.Println("success")
-				}
 			}
 		}
 	}
