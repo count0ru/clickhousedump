@@ -137,7 +137,6 @@ func copyFile(sourceFile string, destinationFile string) error {
 	if err != nil {
 		return err
 	}
-
 	return nil
 }
 
@@ -173,7 +172,6 @@ func replaceStringInDirectoryFiles(filesPath string, oldString string, newString
 			}
 		}
 	}
-
 	return nil
 }
 
@@ -292,9 +290,7 @@ func (gd *GetDatabasesList) Run(databaseConnection *sqlx.DB) error {
 			name: item.DatabaseName,
 		})
 	}
-
 	return nil
-
 }
 
 // Freeze partitions and create hardlink in $CLICKHOUSE_DIRECTORY/shadow
@@ -309,7 +305,6 @@ func (fz *FreezePartitions) Run(databaseConnection *sqlx.DB) error {
 				partition.partID,
 			)
 		} else {
-
 			// freeze partitions
 			_, err := databaseConnection.Exec(
 				fmt.Sprintf(
@@ -321,7 +316,6 @@ func (fz *FreezePartitions) Run(databaseConnection *sqlx.DB) error {
 			if err != nil {
 				return err
 			}
-
 			// copy partition files and metadata
 			inDirectory := fz.SourceDirectory
 			outDirectory := fz.DestinationDirectory
@@ -332,13 +326,11 @@ func (fz *FreezePartitions) Run(databaseConnection *sqlx.DB) error {
 				outDirectory + "/metadata",
 				outDirectory + "/metadata/" + partition.databaseName,
 			}
-
 			err, failDirectory := createDirectories(directoryList)
 			if err != nil {
 				Error.Printf("can't create directory: %v", failDirectory)
 				return err
 			}
-
 			// copy partition files
 			Info.Printf("copy data from %v to %v",
 				inDirectory+"/shadow/backup/data/"+partition.databaseName,
@@ -349,7 +341,6 @@ func (fz *FreezePartitions) Run(databaseConnection *sqlx.DB) error {
 			if err != nil {
 				return err
 			}
-
 			// copy metadata files
 			Info.Printf("copy data from %v to %v",
 				inDirectory+"/metadata/"+partition.databaseName,
@@ -360,7 +351,6 @@ func (fz *FreezePartitions) Run(databaseConnection *sqlx.DB) error {
 			if err != nil {
 				return err
 			}
-
 			// replace ATTACH TABLE to CREATE TABLE in metadata files
 			err = replaceStringInDirectoryFiles(
 				outDirectory+"/metadata/"+partition.databaseName,
@@ -372,9 +362,7 @@ func (fz *FreezePartitions) Run(databaseConnection *sqlx.DB) error {
 			}
 		}
 	}
-
 	return nil
-
 }
 
 // Restore database
@@ -423,39 +411,37 @@ func (rb *restoreDatabase) Run(databaseConnection *sqlx.DB) error {
 				if strings.HasPrefix(string(fileContent[:]), "CREATE TABLE") { // if object is TABLE
 					metaFiles = append(metaFiles, metadataFiles{
 						fileDescriptor.Name(),
-						strings.Replace(fileDescriptor.Name(),".sql", "", -1),
+						strings.Replace(fileDescriptor.Name(), ".sql", "", -1),
 						"table",
 						string(fileContent[:]),
 					})
 				} else if strings.HasPrefix(string(fileContent[:]), "CREATE MATERIALIZED VIEW") { // if object is view
 					metaFiles = append(metaFiles, metadataFiles{
 						fileDescriptor.Name(),
-						strings.Replace(fileDescriptor.Name(),".sql", "", -1),
+						strings.Replace(fileDescriptor.Name(), ".sql", "", -1),
 						"view",
 						string(fileContent[:]),
 					})
 				} else { // is other type object
 					metaFiles = append(metaFiles, metadataFiles{
 						fileDescriptor.Name(),
-						strings.Replace(fileDescriptor.Name(),".sql", "", -1),
+						strings.Replace(fileDescriptor.Name(), ".sql", "", -1),
 						"other",
 						string(fileContent[:]),
 					})
 				}
-
 			}
 		}
 	}
-
 	// create only tables first
 	for _, metadataFile := range metaFiles {
 		if metadataFile.objectType == "table" {
 			Info.Printf("try to apply metadata from file %v", metadataFile.fileName)
 			_, err = databaseConnection.Exec(
-			strings.Replace(
-				metadataFile.metaData,
-				"CREATE TABLE ",
-				"CREATE TABLE " + rb.DatabaseName + ".",-1))
+				strings.Replace(
+					metadataFile.metaData,
+					"CREATE TABLE ",
+					"CREATE TABLE "+rb.DatabaseName+".", -1))
 			if err != nil {
 				Info.Printf("cant't apply metadata file %v", metadataFile.fileName)
 				return err
@@ -473,9 +459,8 @@ func (rb *restoreDatabase) Run(databaseConnection *sqlx.DB) error {
 			} else {
 				Info.Println("success")
 			}
-
+			// attach partitions
 			for _, attachedPart := range partitionsList {
-				// attach partition
 				Info.Printf("ALTER TABLE %v.%v ATTACH PARTITION '%v'",
 					attachedPart.databaseName,
 					attachedPart.tableName,
@@ -510,7 +495,7 @@ func (rb *restoreDatabase) Run(databaseConnection *sqlx.DB) error {
 				Info.Println("success")
 			}
 
-			var tableName= strings.Replace(metadataFile.fileName, ".sql", "", -1)
+			var tableName = strings.Replace(metadataFile.fileName, ".sql", "", -1)
 
 			Info.Printf("try to attach partitions for %v", rb.DatabaseName+"."+metadataFile.fileName)
 			partitionsList, err := getPartitionsListFromDir(rb.SourceDirectory, rb.DestinationDirectory, rb.DatabaseName, tableName)
@@ -726,6 +711,5 @@ func main() {
 	} else {
 		Error.Fatalln("Run in only one mode (backup or restore)")
 	}
-
-	fmt.Println("done")
+	Info.Println("done")
 }
