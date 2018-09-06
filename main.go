@@ -423,21 +423,21 @@ func (rb *restoreDatabase) Run(databaseConnection *sqlx.DB) error {
 				if strings.HasPrefix(string(fileContent[:]), "CREATE TABLE") { // if object is TABLE
 					metaFiles = append(metaFiles, metadataFiles{
 						fileDescriptor.Name(),
-						strings.Replace(fileDescriptor.Name(),".sql", "", -1),
+						strings.Replace(fileDescriptor.Name(), ".sql", "", -1),
 						"table",
 						string(fileContent[:]),
 					})
 				} else if strings.HasPrefix(string(fileContent[:]), "CREATE MATERIALIZED VIEW") { // if object is view
 					metaFiles = append(metaFiles, metadataFiles{
 						fileDescriptor.Name(),
-						strings.Replace(fileDescriptor.Name(),".sql", "", -1),
+						strings.Replace(fileDescriptor.Name(), ".sql", "", -1),
 						"view",
 						string(fileContent[:]),
 					})
 				} else { // is other type object
 					metaFiles = append(metaFiles, metadataFiles{
 						fileDescriptor.Name(),
-						strings.Replace(fileDescriptor.Name(),".sql", "", -1),
+						strings.Replace(fileDescriptor.Name(), ".sql", "", -1),
 						"other",
 						string(fileContent[:]),
 					})
@@ -452,10 +452,10 @@ func (rb *restoreDatabase) Run(databaseConnection *sqlx.DB) error {
 		if metadataFile.objectType == "table" {
 			Info.Printf("try to apply metadata from file %v", metadataFile.fileName)
 			_, err = databaseConnection.Exec(
-			strings.Replace(
-				metadataFile.metaData,
-				"CREATE TABLE ",
-				"CREATE TABLE " + rb.DatabaseName + ".",-1))
+				strings.Replace(
+					metadataFile.metaData,
+					"CREATE TABLE ",
+					"CREATE TABLE "+rb.DatabaseName+".", -1))
 			if err != nil {
 				Info.Printf("cant't apply metadata file %v", metadataFile.fileName)
 				return err
@@ -463,12 +463,15 @@ func (rb *restoreDatabase) Run(databaseConnection *sqlx.DB) error {
 				Info.Println("success")
 			}
 
-			var tableName = strings.Replace(metadataFile.fileName, ".sql", "", -1)
-
 			Info.Printf("try to attach partitions for %v", rb.DatabaseName+"."+metadataFile.fileName)
-			partitionsList, err := getPartitionsListFromDir(rb.SourceDirectory, rb.DestinationDirectory, rb.DatabaseName, tableName)
+			partitionsList, err := getPartitionsListFromDir(
+				rb.SourceDirectory,
+				rb.DestinationDirectory,
+				rb.DatabaseName,
+				metadataFile.objectName,
+			)
 			if err != nil {
-				Info.Printf("cant't get partitions list for attach from backup directory for table %v.%v", rb.DatabaseName, tableName)
+				Info.Printf("cant't get partitions list for attach from backup directory for table %v.%v", rb.DatabaseName, metadataFile.objectName)
 				return err
 			} else {
 				Info.Println("success")
@@ -508,36 +511,6 @@ func (rb *restoreDatabase) Run(databaseConnection *sqlx.DB) error {
 				return err
 			} else {
 				Info.Println("success")
-			}
-
-			var tableName= strings.Replace(metadataFile.fileName, ".sql", "", -1)
-
-			Info.Printf("try to attach partitions for %v", rb.DatabaseName+"."+metadataFile.fileName)
-			partitionsList, err := getPartitionsListFromDir(rb.SourceDirectory, rb.DestinationDirectory, rb.DatabaseName, tableName)
-			if err != nil {
-				Info.Printf("cant't get partitions list for attach from backup directory for table %v.%v", rb.DatabaseName, tableName)
-				return err
-			} else {
-				Info.Println("success")
-			}
-
-			for _, attachedPart := range partitionsList {
-				// attach partition
-				Info.Printf("ALTER TABLE %v.%v ATTACH PARTITION '%v'",
-					attachedPart.databaseName,
-					attachedPart.tableName,
-					attachedPart.partID)
-				_, err = databaseConnection.Exec(
-					"ALTER TABLE " + attachedPart.databaseName + "." + attachedPart.tableName + " ATTACH PARTITION '" + attachedPart.partID + "';")
-				if err != nil {
-					Info.Printf("cant't attach partition %v to %v table in %v database, %v",
-						attachedPart.partID,
-						attachedPart.tableName,
-						attachedPart.databaseName, err)
-					return err
-				} else {
-					Info.Println("success")
-				}
 			}
 		}
 	}
