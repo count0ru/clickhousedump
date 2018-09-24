@@ -2,14 +2,14 @@ package main
 
 import (
 	"fileutils"
-	logs "logging"
-	parts "partutils"
 	"flag"
 	"fmt"
 	"github.com/jmoiron/sqlx"
 	"github.com/kshvakov/clickhouse"
 	"io/ioutil"
+	logs "logging"
 	"os"
+	parts "partutils"
 	"restore"
 )
 
