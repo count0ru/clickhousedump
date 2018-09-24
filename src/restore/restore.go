@@ -50,7 +50,7 @@ func (rb *RestoreDatabase) Run(databaseConnection *sqlx.DB) error {
 	}
 
 	for _, fileDescriptor := range fileDescriptors {
-		if !fileDescriptor.IsDir() && strings.HasSuffix(fileDescriptor.Name(), ".sql") {
+		if !fileDescriptor.IsDir() && (strings.HasSuffix(fileDescriptor.Name(), ".sql") || !strings.HasSuffix(fileDescriptor.Name(), "%2E")) {
 
 			logs.Info.Printf("try to read from metadata file %v", fileDescriptor.Name())
 			fileContent, err := ioutil.ReadFile(rb.SourceDirectory + "/metadata/" + rb.DatabaseName + "/" + fileDescriptor.Name())
