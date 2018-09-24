@@ -167,8 +167,8 @@ func main() {
 		}
 
 		cmdRestoreDatabase := restore.RestoreDatabase{
-			DatabaseName: *argDataBase,
-			SourceDirectory: inputDirectory,
+			DatabaseName:         *argDataBase,
+			SourceDirectory:      inputDirectory,
 			DestinationDirectory: outputDirectory,
 		}
 		err = cmdRestoreDatabase.Run(ClickhouseConnection)
