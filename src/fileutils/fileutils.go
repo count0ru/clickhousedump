@@ -49,9 +49,6 @@ func CopyDirectory(sourceDirectory string, destinationDirectory string) error {
 
 // Copy files
 func CopyFile(sourceFile string, destinationFile string) error {
-
-	var err error
-
 	fromFile, err := os.Open(sourceFile)
 	if err != nil {
 		return err
