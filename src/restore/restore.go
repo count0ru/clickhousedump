@@ -103,34 +103,41 @@ func (rb *RestoreDatabase) Run(databaseConnection *sqlx.DB) error {
 				logs.Info.Println("success")
 			}
 
-			logs.Info.Printf("try to attach partitions for %v", rb.DatabaseName+"."+metadataFile.fileName)
-			cmdGetPartitionsListFromDir := parts.GetPartitionsListFromDir{
-				SourceDirectory:      rb.SourceDirectory,
-				DestinationDirectory: rb.DestinationDirectory,
-				DatabaseName:         rb.DatabaseName,
-				TableName:            metadataFile.objectName,
-			}
-			err = cmdGetPartitionsListFromDir.Run()
+			hasPartitions, err := fileutils.IsExists(rb.SourceDirectory + "/partitions/" + rb.DatabaseName + "/" + metadataFile.objectName)
 			if err != nil {
-				logs.Error.Printf("can't get partition list for attach, %v", err)
+				logs.Error.Printf("not found partitions for %v", metadataFile.objectName)
 			}
-			partitionsList := cmdGetPartitionsListFromDir.Result
-			for _, attachedPart := range partitionsList {
-				// attach partition
-				logs.Info.Printf("ALTER TABLE %v.%v ATTACH PARTITION '%v'",
-					attachedPart.DatabaseName,
-					attachedPart.TableName,
-					attachedPart.PartID)
-				_, err = databaseConnection.Exec(
-					"ALTER TABLE " + attachedPart.DatabaseName + "." + attachedPart.TableName + " ATTACH PARTITION '" + attachedPart.PartID + "';")
+
+			if hasPartitions {
+				logs.Info.Printf("try to attach partitions for %v", rb.DatabaseName+"."+metadataFile.objectName)
+				cmdGetPartitionsListFromDir := parts.GetPartitionsListFromDir{
+					SourceDirectory:      rb.SourceDirectory,
+					DestinationDirectory: rb.DestinationDirectory,
+					DatabaseName:         rb.DatabaseName,
+					TableName:            metadataFile.objectName,
+				}
+				err = cmdGetPartitionsListFromDir.Run()
 				if err != nil {
-					logs.Info.Printf("cant't attach partition %v to %v table in %v database, %v",
-						attachedPart.PartID,
+					logs.Error.Printf("can't get partition list for attach, %v", err)
+				}
+				partitionsList := cmdGetPartitionsListFromDir.Result
+				for _, attachedPart := range partitionsList {
+					// attach partition
+					logs.Info.Printf("ALTER TABLE %v.%v ATTACH PARTITION '%v'",
+						attachedPart.DatabaseName,
 						attachedPart.TableName,
-						attachedPart.DatabaseName, err)
-					return err
-				} else {
-					logs.Info.Println("success")
+						attachedPart.PartID)
+					_, err = databaseConnection.Exec(
+						"ALTER TABLE " + attachedPart.DatabaseName + "." + attachedPart.TableName + " ATTACH PARTITION '" + attachedPart.PartID + "';")
+					if err != nil {
+						logs.Info.Printf("cant't attach partition %v to %v table in %v database, %v",
+							attachedPart.PartID,
+							attachedPart.TableName,
+							attachedPart.DatabaseName, err)
+						return err
+					} else {
+						logs.Info.Println("success")
+					}
 				}
 			}
 		}
