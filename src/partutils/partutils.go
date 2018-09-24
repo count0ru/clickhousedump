@@ -10,10 +10,6 @@ import (
 	"strings"
 )
 
-var (
-	NoFreezeFlag               bool
-)
-
 type PartitionDescribe struct {
 	DatabaseName string
 	TableName    string
@@ -28,7 +24,6 @@ type GetPartitionsListFromDir struct {
 	Result               []PartitionDescribe
 }
 
-
 type GetPartitions struct {
 	Database string
 	Result   []PartitionDescribe
@@ -38,6 +33,7 @@ type FreezePartitions struct {
 	Partitions           []PartitionDescribe
 	SourceDirectory      string
 	DestinationDirectory string
+	NoFreezeFlag         bool
 }
 
 // Get list of partitions for tables
@@ -138,17 +134,14 @@ func (gl *GetPartitionsListFromDir) Run() error {
 
 // Freeze partitions and create hardlink in $CLICKHOUSE_DIRECTORY/shadow
 func (fz *FreezePartitions) Run(databaseConnection *sqlx.DB) error {
-
 	for _, partition := range fz.Partitions {
-
-		if NoFreezeFlag {
+		if fz.NoFreezeFlag {
 			logs.Info.Printf("ALTER TABLE %v.%v FREEZE PARTITION '%v' WITH NAME 'backup';",
 				partition.DatabaseName,
 				partition.TableName,
 				partition.PartID,
 			)
 		} else {
-
 			// freeze partitions
 			_, err := databaseConnection.Exec(
 				fmt.Sprintf(
