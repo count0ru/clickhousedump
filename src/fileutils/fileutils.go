@@ -1,11 +1,11 @@
 package fileutils
 
 import (
-	"os"
+	"io"
 	"io/ioutil"
 	logs "logging"
+	"os"
 	"path"
-	"io"
 	"strings"
 )
 
