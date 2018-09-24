@@ -128,11 +128,12 @@ func main() {
 			if err != nil {
 				logs.Error.Printf("can't get partition list, %v", err)
 			}
-			if *argDataBase == Database.Name || *argDataBase == "" {
+			if Database.Name == *argDataBase {
 				cmdFreezePartitions := parts.FreezePartitions{
-					Partitions:           PartitionsList,
+					Partitions:           cmdGetPartitionsList.Result,
 					SourceDirectory:      inputDirectory,
 					DestinationDirectory: outputDirectory,
+					NoFreezeFlag:         *argNoFreeze,
 				}
 				err = cmdFreezePartitions.Run(ClickhouseConnection)
 				if err != nil {
