@@ -109,7 +109,6 @@ func ReplaceStringInDirectoryFiles(filesPath string, oldString string, newString
 
 // Check directory list is exist
 func IsDirectoryInListExist(directoriesList ...string) (error, string) {
-	logs.Info.Println(directoriesList)
 	for _, currentDirectory := range directoriesList {
 		_, err := IsExists(currentDirectory)
 		if err != nil {
