@@ -2,10 +2,10 @@ package partutils
 
 import (
 	"fileutils"
-	logs "logging"
 	"fmt"
 	"github.com/jmoiron/sqlx"
 	"io/ioutil"
+	logs "logging"
 	"os"
 	"strings"
 )
