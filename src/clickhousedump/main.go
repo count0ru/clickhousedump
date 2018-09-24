@@ -116,8 +116,6 @@ func main() {
 			logs.Error.Fatalf("%v not found", noDirectory)
 		}
 
-		var PartitionsList []parts.PartitionDescribe
-
 		// get partitions list for databases or database (--db argument)
 		DatabaseList := GetDatabasesList{}
 		err = DatabaseList.Run(ClickhouseConnection)
