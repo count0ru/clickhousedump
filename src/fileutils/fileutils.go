@@ -30,15 +30,17 @@ func CopyDirectory(sourceDirectory string, destinationDirectory string) error {
 		return err
 	}
 	for _, fileDescriptor := range fileDescriptors {
-		sourcePath := path.Join(sourceDirectory, fileDescriptor.Name())
-		destinationPath := path.Join(destinationDirectory, fileDescriptor.Name())
-		if fileDescriptor.IsDir() {
-			if err = CopyDirectory(sourcePath, destinationPath); err != nil {
-				logs.Error.Fatalln(err)
-			}
-		} else {
-			if err = CopyFile(sourcePath, destinationPath); err != nil {
-				logs.Error.Fatalln(err)
+		if !strings.HasPrefix(fileDescriptor.Name(), "%2Einner%2E") {
+			sourcePath := path.Join(sourceDirectory, fileDescriptor.Name())
+			destinationPath := path.Join(destinationDirectory, fileDescriptor.Name())
+			if fileDescriptor.IsDir() {
+				if err = CopyDirectory(sourcePath, destinationPath); err != nil {
+					logs.Error.Fatalln(err)
+				}
+			} else {
+				if err = CopyFile(sourcePath, destinationPath); err != nil {
+					logs.Error.Fatalln(err)
+				}
 			}
 		}
 	}
