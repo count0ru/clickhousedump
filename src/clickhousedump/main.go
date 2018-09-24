@@ -15,7 +15,6 @@ import (
 
 var (
 	ClickhouseConnectionString string
-	NoFreezeFlag               bool
 )
 
 type GetDatabasesList struct {
@@ -73,7 +72,6 @@ func main() {
 
 	flag.Parse()
 
-	NoFreezeFlag = *argNoFreeze
 	ClickhouseConnectionString = "tcp://" + *argHost + ":" + *argPort + "?username=&compress=true"
 
 	if *argDebugOn {
