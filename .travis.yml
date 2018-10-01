@@ -12,6 +12,5 @@ install:
   - go get github.com/golang/lint/golint
 
 script:
-  - gb vendor fetch
   - gb build
   - gb test
