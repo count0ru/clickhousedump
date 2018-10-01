@@ -1,6 +1,8 @@
 ---
 language: go
 
+go_import_path: github.com/count0ru/clickhousedump
+
 go:
   - "1.x"
   - "1.10.x"
