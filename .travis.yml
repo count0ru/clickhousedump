@@ -9,8 +9,8 @@ go:
 
 install:
   - go get github.com/constabulary/gb/...
-  - go get github.com/golang/lint/golint
 
 script:
+  - gb vendor update --all
   - gb build
   - gb test
