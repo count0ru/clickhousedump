@@ -10,7 +10,7 @@
 		{
 			"importpath": "github.com/kshvakov/clickhouse",
 			"repository": "https://github.com/kshvakov/clickhouse",
-			"revision": "b89cedab7aa388768f1b491db6232d1b66ac720d",
+			"revision": "60cb4d4d7fa7f5609736d1bed4c328656e3bba0e",
 			"branch": "master"
 		}
 	]
