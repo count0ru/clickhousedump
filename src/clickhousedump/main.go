@@ -60,7 +60,8 @@ func main() {
 
 	logs.Init(ioutil.Discard, os.Stdout, os.Stdout, os.Stderr)
 
-	argBackup := flag.Bool("backup", false, "backup mode")
+        //TODO: add --no-cleanup flag
+        argBackup := flag.Bool("backup", false, "backup mode")
 	argRestore := flag.Bool("restore", false, "restore mode")
 	argHost := flag.String("h", "127.0.0.1", "server hostname")
 	argDataBase := flag.String("db", "", "database name")
@@ -123,7 +124,8 @@ func main() {
 			logs.Error.Printf("can't get database list, %v", err)
 		}
 		for _, Database := range DatabaseList.Result {
-			cmdGetPartitionsList := parts.GetPartitions{Database: Database.Name}
+		        //TODO: add clean up for $CLICKHOUSE_DIRECTORY/shadow/backup
+                        cmdGetPartitionsList := parts.GetPartitions{Database: Database.Name}
 			err = cmdGetPartitionsList.Run(ClickhouseConnection)
 			if err != nil {
 				logs.Error.Printf("can't get partition list, %v", err)
