@@ -60,11 +60,11 @@ func main() {
 
 	logs.Init(ioutil.Discard, os.Stdout, os.Stdout, os.Stderr)
 
-        //TODO: add --no-cleanup flag
-        argBackup := flag.Bool("backup", false, "backup mode")
+    argBackup := flag.Bool("backup", false, "backup mode")
 	argRestore := flag.Bool("restore", false, "restore mode")
 	argHost := flag.String("h", "127.0.0.1", "server hostname")
 	argDataBase := flag.String("db", "", "database name")
+	argNoCleanUp := flag.Bool("no-cleanup", false, "do not delete freezed partitions hardlinks after backup")
 	argDebugOn := flag.Bool("d", false, "show debug info")
 	argPort := flag.String("p", "9000", "server port")
 	argNoFreeze := flag.Bool("no-freeze", false, "do not freeze, only show partitions")
