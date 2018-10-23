@@ -143,6 +143,11 @@ func main() {
 			}
 		}
 
+		// clean up backup directory
+		if !*argNoCleanUp {
+			logs.Info.Printf("clean up %v", inputDirectory + "/shadow/backup")
+			os.RemoveAll(inputDirectory + "/shadow/backup")
+		}
 	} else if *argRestore && !*argBackup {
 
 		fmt.Println("Run in restore mode")
