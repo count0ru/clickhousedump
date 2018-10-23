@@ -4,13 +4,13 @@
 		{
 			"importpath": "github.com/jmoiron/sqlx",
 			"repository": "https://github.com/jmoiron/sqlx",
-			"revision": "0dae4fefe7c0e190f7b5a78dac28a1c82cc8d849",
+			"revision": "3a411660be52b3236199fbfe1919f515cfc1ca32",
 			"branch": "master"
 		},
 		{
 			"importpath": "github.com/kshvakov/clickhouse",
 			"repository": "https://github.com/kshvakov/clickhouse",
-			"revision": "60cb4d4d7fa7f5609736d1bed4c328656e3bba0e",
+			"revision": "3414b6002bd44e72f96fe378b3103fec3248b8d6",
 			"branch": "master"
 		}
 	]
