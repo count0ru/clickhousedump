@@ -184,11 +184,9 @@ func main() {
 		}
 
 	} else if !*argRestore && !*argBackup {
-		fmt.Println("Choose mode (restore tor backup)")
-
+		fmt.Println("run with --help for help")
 	} else {
 		logs.Error.Fatalln("Run in only one mode (backup or restore)")
 	}
 
-	fmt.Println("done")
 }
