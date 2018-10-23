@@ -124,8 +124,7 @@ func main() {
 			logs.Error.Printf("can't get database list, %v", err)
 		}
 		for _, Database := range DatabaseList.Result {
-		        //TODO: add clean up for $CLICKHOUSE_DIRECTORY/shadow/backup
-                        cmdGetPartitionsList := parts.GetPartitions{Database: Database.Name}
+            cmdGetPartitionsList := parts.GetPartitions{Database: Database.Name}
 			err = cmdGetPartitionsList.Run(ClickhouseConnection)
 			if err != nil {
 				logs.Error.Printf("can't get partition list, %v", err)
