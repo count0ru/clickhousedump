@@ -1,4 +1,4 @@
-BIN = $(GOPATH)/bin
+BIN=$(GOPATH)/bin
 GB=$(BIN)/gb
 build:
 	go get github.com/constabulary/gb/...

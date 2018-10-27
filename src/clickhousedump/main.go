@@ -60,11 +60,11 @@ func main() {
 
 	logs.Init(ioutil.Discard, os.Stdout, os.Stdout, os.Stderr)
 
-        //TODO: add --no-cleanup flag
-        argBackup := flag.Bool("backup", false, "backup mode")
+    argBackup := flag.Bool("backup", false, "backup mode")
 	argRestore := flag.Bool("restore", false, "restore mode")
 	argHost := flag.String("h", "127.0.0.1", "server hostname")
 	argDataBase := flag.String("db", "", "database name")
+	argNoCleanUp := flag.Bool("no-cleanup", false, "do not delete freezed partitions hardlinks after backup")
 	argDebugOn := flag.Bool("d", false, "show debug info")
 	argPort := flag.String("p", "9000", "server port")
 	argNoFreeze := flag.Bool("no-freeze", false, "do not freeze, only show partitions")
@@ -124,8 +124,7 @@ func main() {
 			logs.Error.Printf("can't get database list, %v", err)
 		}
 		for _, Database := range DatabaseList.Result {
-		        //TODO: add clean up for $CLICKHOUSE_DIRECTORY/shadow/backup
-                        cmdGetPartitionsList := parts.GetPartitions{Database: Database.Name}
+            cmdGetPartitionsList := parts.GetPartitions{Database: Database.Name}
 			err = cmdGetPartitionsList.Run(ClickhouseConnection)
 			if err != nil {
 				logs.Error.Printf("can't get partition list, %v", err)
@@ -144,6 +143,11 @@ func main() {
 			}
 		}
 
+		// clean up backup directory
+		if !*argNoCleanUp {
+			logs.Info.Printf("clean up %v", inputDirectory + "/shadow/backup")
+			os.RemoveAll(inputDirectory + "/shadow/backup")
+		}
 	} else if *argRestore && !*argBackup {
 
 		fmt.Println("Run in restore mode")
@@ -180,11 +184,9 @@ func main() {
 		}
 
 	} else if !*argRestore && !*argBackup {
-		fmt.Println("Choose mode (restore tor backup)")
-
+		fmt.Println("run with --help for help")
 	} else {
 		logs.Error.Fatalln("Run in only one mode (backup or restore)")
 	}
 
-	fmt.Println("done")
 }
