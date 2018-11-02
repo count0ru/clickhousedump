@@ -136,7 +136,7 @@ func (gl *GetPartitionsListFromDir) Run() error {
 func (fz *FreezePartitions) Run(databaseConnection *sqlx.DB) error {
 	for _, partition := range fz.Partitions {
 		if fz.NoFreezeFlag {
-			logs.Info.Printf("ALTER TABLE %v.%v FREEZE PARTITION '%v' WITH NAME 'backup';",
+			logs.Info.Printf("ALTER TABLE %v.%v FREEZE PARTITION %v WITH NAME 'backup';",
 				partition.DatabaseName,
 				partition.TableName,
 				partition.PartID,
@@ -145,7 +145,7 @@ func (fz *FreezePartitions) Run(databaseConnection *sqlx.DB) error {
 			// freeze partitions
 			_, err := databaseConnection.Exec(
 				fmt.Sprintf(
-					"ALTER TABLE %v.%v FREEZE PARTITION '%v' WITH NAME 'backup';",
+					"ALTER TABLE %v.%v FREEZE PARTITION %v WITH NAME 'backup';",
 					partition.DatabaseName,
 					partition.TableName,
 					partition.PartID,
