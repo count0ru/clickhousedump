@@ -115,13 +115,13 @@ func (gl *GetPartitionsListFromDir) Run() error {
 				PartitionDescribe{
 					DatabaseName: gl.DatabaseName,
 					TableName:    gl.TableName,
-					PartID:       partDescriptor.Name()[:6],
+					PartID:       partDescriptor.Name(),
 				}) {
 				result = append(result,
 					PartitionDescribe{
 						DatabaseName: gl.DatabaseName,
 						TableName:    gl.TableName,
-						PartID:       partDescriptor.Name()[:6],
+						PartID:       partDescriptor.Name(),
 					})
 			}
 		}
