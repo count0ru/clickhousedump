@@ -15,6 +15,9 @@ import (
 
 var (
 	ClickhouseConnectionString string
+	Version                    string
+	BuildID                    string
+	BuildDate                  string
 )
 
 type GetDatabasesList struct {
@@ -64,6 +67,7 @@ func main() {
 	argRestore := flag.Bool("restore", false, "restore mode")
 	argHost := flag.String("h", "127.0.0.1", "server hostname")
 	argDataBase := flag.String("db", "", "database name")
+	argVersion := flag.Bool("version", false, "show version")
 	argNoCleanUp := flag.Bool("no-cleanup", false, "do not delete freezed partitions hardlinks after backup")
 	argDebugOn := flag.Bool("d", false, "show debug info")
 	argPort := flag.String("p", "9000", "server port")
@@ -74,6 +78,12 @@ func main() {
 	flag.Parse()
 
 	ClickhouseConnectionString = "tcp://" + *argHost + ":" + *argPort + "?username=&compress=true"
+
+	if *argVersion {
+		logs.Info.Printf("version: %s", Version)
+		logs.Info.Printf("build info: %s at %s", BuildID, BuildDate)
+		os.Exit(0)
+	}
 
 	if *argDebugOn {
 		ClickhouseConnectionString = ClickhouseConnectionString + "&debug=true"
