@@ -3,12 +3,13 @@ package restore
 import (
 	"fileutils"
 	"fmt"
-	"github.com/jmoiron/sqlx"
 	"io/ioutil"
 	logs "logging"
 	"os"
 	parts "partutils"
 	"strings"
+
+	"github.com/jmoiron/sqlx"
 )
 
 type RestoreDatabase struct {
@@ -124,7 +125,7 @@ func (rb *RestoreDatabase) Run(databaseConnection *sqlx.DB) error {
 				for _, attachedPart := range partitionsList {
 					// attach partition
 					queryAttach := fmt.Sprintf(
-						"ALTER TABLE %v.%v ATTACH PARTITION %v;",
+						"ALTER TABLE %v.%v ATTACH PART '%v';",
 						attachedPart.DatabaseName,
 						attachedPart.TableName,
 						attachedPart.PartID)
