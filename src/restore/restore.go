@@ -3,12 +3,13 @@ package restore
 import (
 	"fileutils"
 	"fmt"
-	"github.com/jmoiron/sqlx"
 	"io/ioutil"
 	logs "logging"
 	"os"
 	parts "partutils"
 	"strings"
+
+	"github.com/jmoiron/sqlx"
 )
 
 type RestoreDatabase struct {
@@ -123,14 +124,15 @@ func (rb *RestoreDatabase) Run(databaseConnection *sqlx.DB) error {
 				partitionsList := cmdGetPartitionsListFromDir.Result
 				for _, attachedPart := range partitionsList {
 					// attach partition
-					logs.Info.Printf("ALTER TABLE %v.%v ATTACH PARTITION '%v'",
+					queryAttach := fmt.Sprintf(
+						"ALTER TABLE %v.%v ATTACH PART '%v';",
 						attachedPart.DatabaseName,
 						attachedPart.TableName,
 						attachedPart.PartID)
-					_, err = databaseConnection.Exec(
-						"ALTER TABLE " + attachedPart.DatabaseName + "." + attachedPart.TableName + " ATTACH PARTITION '" + attachedPart.PartID + "';")
+					logs.Info.Println(queryAttach)
+					_, err = databaseConnection.Exec(queryAttach)
 					if err != nil {
-						logs.Info.Printf("cant't attach partition %v to %v table in %v database, %v",
+						logs.Info.Printf("can't attach partition %v to %v table in %v database, %v",
 							attachedPart.PartID,
 							attachedPart.TableName,
 							attachedPart.DatabaseName, err)

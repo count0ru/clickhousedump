@@ -15,6 +15,9 @@ import (
 
 var (
 	ClickhouseConnectionString string
+	Version                    string
+	BuildID                    string
+	BuildDate                  string
 )
 
 type GetDatabasesList struct {
@@ -60,10 +63,11 @@ func main() {
 
 	logs.Init(ioutil.Discard, os.Stdout, os.Stdout, os.Stderr)
 
-    argBackup := flag.Bool("backup", false, "backup mode")
+	argBackup := flag.Bool("backup", false, "backup mode")
 	argRestore := flag.Bool("restore", false, "restore mode")
 	argHost := flag.String("h", "127.0.0.1", "server hostname")
 	argDataBase := flag.String("db", "", "database name")
+	argVersion := flag.Bool("version", false, "show version")
 	argNoCleanUp := flag.Bool("no-cleanup", false, "do not delete freezed partitions hardlinks after backup")
 	argDebugOn := flag.Bool("d", false, "show debug info")
 	argPort := flag.String("p", "9000", "server port")
@@ -74,6 +78,12 @@ func main() {
 	flag.Parse()
 
 	ClickhouseConnectionString = "tcp://" + *argHost + ":" + *argPort + "?username=&compress=true"
+
+	if *argVersion {
+		logs.Info.Printf("version: %s", Version)
+		logs.Info.Printf("build info: %s at %s", BuildID, BuildDate)
+		os.Exit(0)
+	}
 
 	if *argDebugOn {
 		ClickhouseConnectionString = ClickhouseConnectionString + "&debug=true"
@@ -117,19 +127,19 @@ func main() {
 			logs.Error.Fatalf("%v not found", noDirectory)
 		}
 
-		// get partitions list for databases or database (--db argument)
-		DatabaseList := GetDatabasesList{}
-		err = DatabaseList.Run(ClickhouseConnection)
-		if err != nil {
-			logs.Error.Printf("can't get database list, %v", err)
-		}
-		for _, Database := range DatabaseList.Result {
-            cmdGetPartitionsList := parts.GetPartitions{Database: Database.Name}
-			err = cmdGetPartitionsList.Run(ClickhouseConnection)
+		if *argDataBase == "" { //backup all databases
+			// get partitions list for databases or database (--db argument)
+			DatabaseList := GetDatabasesList{}
+			err = DatabaseList.Run(ClickhouseConnection)
 			if err != nil {
-				logs.Error.Printf("can't get partition list, %v", err)
+				logs.Error.Printf("can't get database list, %v", err)
 			}
-			if Database.Name == *argDataBase {
+			for _, Database := range DatabaseList.Result {
+				cmdGetPartitionsList := parts.GetPartitions{Database: Database.Name}
+				err = cmdGetPartitionsList.Run(ClickhouseConnection)
+				if err != nil {
+					logs.Error.Printf("can't get partition list, %v", err)
+				}
 				cmdFreezePartitions := parts.FreezePartitions{
 					Partitions:           cmdGetPartitionsList.Result,
 					SourceDirectory:      inputDirectory,
@@ -141,11 +151,27 @@ func main() {
 					logs.Error.Printf("can't freeze partition, %v", err)
 				}
 			}
+		} else { //backup specify database
+			cmdGetPartitionsList := parts.GetPartitions{Database: *argDataBase}
+			err = cmdGetPartitionsList.Run(ClickhouseConnection)
+			if err != nil {
+				logs.Error.Printf("can't get partition list, %v", err)
+			}
+			cmdFreezePartitions := parts.FreezePartitions{
+				Partitions:           cmdGetPartitionsList.Result,
+				SourceDirectory:      inputDirectory,
+				DestinationDirectory: outputDirectory,
+				NoFreezeFlag:         *argNoFreeze,
+			}
+			err = cmdFreezePartitions.Run(ClickhouseConnection)
+			if err != nil {
+				logs.Error.Printf("can't freeze partition, %v", err)
+			}
 		}
 
 		// clean up backup directory
 		if !*argNoCleanUp {
-			logs.Info.Printf("clean up %v", inputDirectory + "/shadow/backup")
+			logs.Info.Printf("clean up %v", inputDirectory+"/shadow/backup")
 			os.RemoveAll(inputDirectory + "/shadow/backup")
 		}
 	} else if *argRestore && !*argBackup {
